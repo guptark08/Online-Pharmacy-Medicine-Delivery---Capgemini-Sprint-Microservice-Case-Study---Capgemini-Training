@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: email-service
+
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}d
+    username: ${MAIL_USERNAME:jumpsharenow@gmail.com}
+		
+    password: ${MAIL_PASSWORD:Arush@123}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+
+server:
+  port: 8085
+
+pharmacy:
+  events:
+    exchange: pharmacy.events.exchange
+    queues:
+      email-verification: pharmacy.email.verification
+      login-alert: pharmacy.email.login-alert
+      otp-delivery: pharmacy.email.otp
+
+app:
+  email:
+    from-name: Pharmacy System
+    from-address: noreply@pharmacy.com
+
+logging:
+  level:
+    com.pharmacy.email: DEBUG

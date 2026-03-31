@@ -1,0 +1,2 @@
+jwt:
+  secret: TestGatewayJwtSecretKeyThatIsAtLeast32CharactersLong12345

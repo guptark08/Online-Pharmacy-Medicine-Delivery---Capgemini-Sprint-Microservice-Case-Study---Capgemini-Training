@@ -1,0 +1,265 @@
+services:
+
+  # ============================================
+  # INFRASTRUCTURE SERVICES
+  # ============================================
+
+  mysql:
+    image: mysql:8.4
+    container_name: mysql
+    restart: unless-stopped
+    mem_limit: 300m
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  redis:
+    image: redis:7
+    container_name: redis
+    restart: unless-stopped
+    mem_limit: 100m
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
+    restart: unless-stopped
+    mem_limit: 200m
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-pharmacy}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-pharmacy123}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # ============================================
+  # MONITORING SERVICES
+  # ============================================
+
+  zipkin:
+    image: openzipkin/zipkin:3
+    container_name: zipkin
+    restart: unless-stopped
+    mem_limit: 150m
+    ports:
+      - "9411:9411"
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    restart: unless-stopped
+    mem_limit: 200m
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    restart: unless-stopped
+    mem_limit: 250m
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin123}
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+  loki:
+    image: grafana/loki
+    container_name: loki
+    restart: unless-stopped
+    mem_limit: 200m
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/loki
+
+  sonarqube:
+    image: sonarqube:community
+    container_name: sonarqube
+    restart: unless-stopped
+    mem_limit: 1200m
+    ports:
+      - "9000:9000"
+    environment:
+      SONAR_SEARCH_JAVAOPTS: -Xms256m -Xmx256m
+      SONAR_WEB_JAVAOPTS: -Xms256m -Xmx256m
+      SONAR_CE_JAVAOPTS: -Xms256m -Xmx256m
+    volumes:
+      - sonarqube-data:/opt/sonarqube/data
+      - sonarqube-extensions:/opt/sonarqube/extensions
+      - sonarqube-logs:/opt/sonarqube/logs
+
+  # ============================================
+  # APPLICATION SERVICES
+  # ============================================
+
+  service-registry:
+    build:
+      context: ./Online_Pharmacy_and_Delivery_Backend/service-registry
+      args:
+        JAR_NAME: service-registry-0.0.1-SNAPSHOT.jar
+    container_name: service-registry
+    restart: unless-stopped
+    mem_limit: 256m
+    env_file: .env
+    environment:
+      - JAVA_OPTS=-Xms96m -Xmx192m -XX:+UseSerialGC
+    ports:
+      - "8761:8761"
+
+  auth-service:
+    build:
+      context: ./Online_Pharmacy_and_Delivery_Backend/Auth_Service
+      args:
+        JAR_NAME: Auth_Service-0.0.1-SNAPSHOT.jar
+    container_name: auth-service
+    restart: unless-stopped
+    mem_limit: 320m
+    env_file: .env
+    environment:
+      - JAVA_OPTS=-Xms128m -Xmx256m -XX:+UseSerialGC
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/usersdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true
+    ports:
+      - "8081:8081"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      service-registry:
+        condition: service_started
+
+  catalog-service:
+    build:
+      context: ./Online_Pharmacy_and_Delivery_Backend/CatalogAndPrescription_Service
+      args:
+        JAR_NAME: CatalogAndPrescription_Service-0.0.1-SNAPSHOT.jar
+    container_name: catalog-service
+    restart: unless-stopped
+    mem_limit: 320m
+    env_file: .env
+    environment:
+      - JAVA_OPTS=-Xms128m -Xmx256m -XX:+UseSerialGC
+      - DB_URL=jdbc:mysql://mysql:3306/pharmacy_catalog_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true
+    ports:
+      - "8082:8082"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      service-registry:
+        condition: service_started
+
+  order-service:
+    build:
+      context: ./Online_Pharmacy_and_Delivery_Backend/OrderAndDelivery_Service
+      args:
+        JAR_NAME: OrderAndDelivery_Service-0.0.1-SNAPSHOT.jar
+    container_name: order-service
+    restart: unless-stopped
+    mem_limit: 320m
+    env_file: .env
+    environment:
+      - JAVA_OPTS=-Xms128m -Xmx256m -XX:+UseSerialGC
+      - DB_URL=jdbc:mysql://mysql:3306/pharmacy_orders?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true
+    ports:
+      - "8083:8083"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+
+  admin-service:
+    build:
+      context: ./Online_Pharmacy_and_Delivery_Backend/admin-service
+      args:
+        JAR_NAME: admin-service-1.0.0.jar
+    container_name: admin-service
+    restart: unless-stopped
+    mem_limit: 320m
+    env_file: .env
+    environment:
+      - JAVA_OPTS=-Xms128m -Xmx256m -XX:+UseSerialGC
+      - DB_URL=jdbc:mysql://mysql:3306/pharmacy_admin_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true
+    ports:
+      - "8084:8084"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      order-service:
+        condition: service_started
+
+  api-gateway:
+    build:
+      context: ./Online_Pharmacy_and_Delivery_Backend/api-gateway
+      args:
+        JAR_NAME: api-gateway-0.0.1-SNAPSHOT.jar
+    container_name: api-gateway
+    restart: unless-stopped
+    mem_limit: 256m
+    env_file: .env
+    environment:
+      - JAVA_OPTS=-Xms96m -Xmx192m -XX:+UseSerialGC
+    ports:
+      - "8080:8080"
+    depends_on:
+      - service-registry
+
+  email-service:
+    build:
+      context: ./Online_Pharmacy_and_Delivery_Backend/email-service
+      args:
+        JAR_NAME: email-service-0.0.1-SNAPSHOT.jar
+    container_name: email-service
+    restart: unless-stopped
+    mem_limit: 256m
+    env_file: .env
+    environment:
+      - JAVA_OPTS=-Xms96m -Xmx192m -XX:+UseSerialGC
+      - RABBITMQ_HOST=rabbitmq
+    ports:
+      - "8085:8085"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  mysql-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  sonarqube-data:
+  sonarqube-extensions:
+  sonarqube-logs:
