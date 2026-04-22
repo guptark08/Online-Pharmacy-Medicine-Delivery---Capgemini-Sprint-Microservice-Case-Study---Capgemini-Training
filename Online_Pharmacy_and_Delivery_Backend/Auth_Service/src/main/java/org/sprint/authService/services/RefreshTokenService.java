@@ -48,6 +48,15 @@ public class RefreshTokenService {
         return createToken(existing.getUser());
     }
 
+    @Transactional
+    public void revokeAllActiveTokensByUserId(Long userId) {
+        if (userId == null) {
+            return;
+        }
+
+        refreshTokenRepository.revokeAllActiveTokensByUserId(userId);
+    }
+
     private RefreshToken createToken(User user) {
         LocalDateTime expiresAt = LocalDateTime.now().plusNanos(refreshExpirationMs * 1_000_000L);
 

@@ -51,8 +51,8 @@ public class VerificationController {
     @Value("${password.reset.expiration-minutes:60}")
     private int passwordResetExpirationMinutes;
 
-    @Value("${app.base-url:http://localhost:8081}")
-    private String baseUrl;
+    @Value("${app.frontend-base-url:http://localhost:5173}")
+    private String frontendBaseUrl;
 
     @PostMapping("/verify-password-then-send-otp")
     public ResponseEntity<ApiResponse<String>> verifyPasswordAndSendOtp(@Valid @RequestBody PasswordLoginRequest request) {
@@ -184,7 +184,7 @@ public class VerificationController {
             
             passwordResetTokenRepository.save(resetToken);
             
-            String resetUrl = baseUrl + "/api/auth/reset-password?token=" + token;
+            String resetUrl = frontendBaseUrl + "/reset-password?token=" + token;
             
             PasswordResetEvent event = PasswordResetEvent.builder()
                     .userId(user.getId())

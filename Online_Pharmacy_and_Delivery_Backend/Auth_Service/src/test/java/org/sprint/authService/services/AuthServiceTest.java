@@ -3,6 +3,7 @@ package org.sprint.authService.services;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import org.sprint.authService.dto.AuthRequest;
 import org.sprint.authService.dto.AuthResponse;
 import org.sprint.authService.entities.RefreshToken;
 import org.sprint.authService.entities.User;
+import org.sprint.authService.security.JwtTokenRevocationService;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -33,6 +35,9 @@ class AuthServiceTest {
 
     @Mock
     private RefreshTokenService refreshTokenService;
+
+    @Mock
+    private JwtTokenRevocationService jwtTokenRevocationService;
 
     @InjectMocks
     private AuthService authService;
@@ -73,5 +78,17 @@ class AuthServiceTest {
         assertEquals("Bearer", response.getTokenType());
         assertEquals(10L, response.getUserId());
         assertEquals("CUSTOMER", response.getRole());
+    }
+
+    @Test
+    void logout_revokesRefreshTokensAndAccessToken() {
+        when(jwtService.extractUserId("access-token")).thenReturn(10L);
+        when(jwtService.extractTokenId("access-token")).thenReturn("jti-123");
+        when(jwtService.getExpiration("access-token")).thenReturn(new java.util.Date(System.currentTimeMillis() + 60_000));
+
+        authService.logout("access-token");
+
+        verify(refreshTokenService).revokeAllActiveTokensByUserId(10L);
+        verify(jwtTokenRevocationService).revokeToken(any(), any(), any());
     }
 }

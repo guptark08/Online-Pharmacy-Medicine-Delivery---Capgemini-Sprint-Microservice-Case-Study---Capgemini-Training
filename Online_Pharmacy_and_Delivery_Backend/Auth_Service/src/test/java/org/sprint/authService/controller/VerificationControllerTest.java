@@ -15,6 +15,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -29,6 +30,8 @@ import org.sprint.authService.config.JwtService;
 import org.sprint.authService.config.SecurityConfig;
 import org.sprint.authService.dao.PasswordResetTokenRepository;
 import org.sprint.authService.dao.UserRepository;
+import org.sprint.authService.dto.PasswordResetEvent;
+import org.sprint.authService.entities.PasswordResetToken;
 import org.sprint.authService.entities.RefreshToken;
 import org.sprint.authService.entities.User;
 import org.sprint.authService.exception.GlobalExceptionHandler;
@@ -149,6 +152,26 @@ class VerificationControllerTest {
                 .andExpect(jsonPath("$.data.identifier").value("Username or email is required"));
     }
 
+    @Test
+    void forgotPassword_usesFrontendResetUrlInPublishedEvent() throws Exception {
+        User user = activeVerifiedUser();
+
+        when(userRepository.findByEmailIgnoreCaseAndStatus("alice@example.com", true)).thenReturn(Optional.of(user));
+        when(passwordResetTokenRepository.save(any(PasswordResetToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(forgotPasswordRequest("alice@example.com"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", containsString("If an account exists")));
+
+        ArgumentCaptor<PasswordResetEvent> eventCaptor = ArgumentCaptor.forClass(PasswordResetEvent.class);
+        verify(emailEventPublisher).publishPasswordResetEvent(eventCaptor.capture());
+
+        PasswordResetEvent event = eventCaptor.getValue();
+        org.junit.jupiter.api.Assertions.assertTrue(event.getResetUrl().startsWith("http://localhost:5173/reset-password?token="));
+    }
+
     private User activeVerifiedUser() {
         return User.builder()
                 .id(1L)
@@ -173,6 +196,12 @@ class VerificationControllerTest {
         Map<String, Object> request = new HashMap<>();
         request.put("identifier", identifier);
         request.put("otpCode", otpCode);
+        return request;
+    }
+
+    private Map<String, Object> forgotPasswordRequest(String email) {
+        Map<String, Object> request = new HashMap<>();
+        request.put("email", email);
         return request;
     }
 }

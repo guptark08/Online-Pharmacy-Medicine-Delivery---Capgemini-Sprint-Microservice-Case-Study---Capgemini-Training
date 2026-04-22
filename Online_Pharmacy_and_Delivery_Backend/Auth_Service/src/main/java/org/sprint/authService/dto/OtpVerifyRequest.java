@@ -14,6 +14,4 @@ public class OtpVerifyRequest {
 
     @NotBlank(message = "OTP code is required")
     private String otpCode;
-
-    private String purpose;
 }

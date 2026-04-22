@@ -71,8 +71,13 @@ public class AuthService {
             throw new IllegalArgumentException("Access token is required for logout");
         }
 
+        Long userId = jwtService.extractUserId(rawAccessToken);
         String tokenId = jwtService.extractTokenId(rawAccessToken);
         Date expiration = jwtService.getExpiration(rawAccessToken);
+
+        if (userId != null) {
+            refreshTokenService.revokeAllActiveTokensByUserId(userId);
+        }
 
         jwtTokenRevocationService.revokeToken(
                 tokenId,
