@@ -24,8 +24,6 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.sprint.authService.config.JwtFilter;
 import org.sprint.authService.config.SecurityConfig;
-import org.sprint.authService.dto.AuthRequest;
-import org.sprint.authService.dto.AuthResponse;
 import org.sprint.authService.dto.UserRequest;
 import org.sprint.authService.dto.UserResponse;
 import org.sprint.authService.entities.User;
@@ -120,30 +118,20 @@ class UserControllerTest {
 
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void login_validCredentials_returns200WithToken() throws Exception {
-        AuthResponse response = AuthResponse.builder()
-                .token("token-123")
-                .tokenType("Bearer")
-                .expiresInMs(86400000L)
-                .userId(1L)
-                .username("alice")
-                .email("alice@example.com")
-                .role("CUSTOMER")
-                .active(true)
-                .build();
+    void signup_passwordMissingSpecialCharacter_returns400() throws Exception {
+        Map<String, Object> request = validSignupRequest();
+        request.put("password", "Password123");
 
-        when(authService.authenticate(any(AuthRequest.class))).thenReturn(response);
-
-        mockMvc.perform(post("/api/auth/login")
+        mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(validLoginRequest())))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.token").isNotEmpty());
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.data.password", containsString("special character")));
     }
 
     @Test
@@ -197,14 +185,8 @@ class UserControllerTest {
         request.put("email", "alice@example.com");
         request.put("username", "alice");
         request.put("mobile", "9999999999");
-        request.put("password", "Password123");
+        request.put("password", "Password@123");
         return request;
     }
 
-    private Map<String, Object> validLoginRequest() {
-        Map<String, Object> request = new HashMap<>();
-        request.put("username", "alice");
-        request.put("password", "Password123");
-        return request;
-    }
 }

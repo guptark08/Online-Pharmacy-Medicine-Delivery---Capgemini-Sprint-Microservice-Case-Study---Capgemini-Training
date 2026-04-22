@@ -21,6 +21,8 @@ import org.sprint.authService.dao.UserRepository;
 import org.sprint.authService.dto.UserRequest;
 import org.sprint.authService.entities.User;
 import org.sprint.authService.exception.DuplicateResourceException;
+import org.sprint.authService.service.EmailEventPublisher;
+import org.sprint.authService.service.VerificationService;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -30,6 +32,12 @@ class UserServiceTest {
 
     @Mock
     private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+    @Mock
+    private VerificationService verificationService;
+
+    @Mock
+    private EmailEventPublisher emailEventPublisher;
 
     @InjectMocks
     private UserService userService;
@@ -65,6 +73,9 @@ class UserServiceTest {
             u.setId(1L);
             return u;
         });
+        when(verificationService.createEmailVerificationToken(1L)).thenReturn("verification-token");
+        when(verificationService.getVerificationUrl("verification-token"))
+                .thenReturn("http://localhost:8081/api/auth/verify-email?token=verification-token");
 
         var response = userService.addUser(request);
 

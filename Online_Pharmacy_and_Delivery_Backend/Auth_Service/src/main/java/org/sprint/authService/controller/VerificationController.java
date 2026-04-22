@@ -25,6 +25,8 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -53,7 +55,7 @@ public class VerificationController {
     private String baseUrl;
 
     @PostMapping("/verify-password-then-send-otp")
-    public ResponseEntity<ApiResponse<String>> verifyPasswordAndSendOtp(@RequestBody PasswordLoginRequest request) {
+    public ResponseEntity<ApiResponse<String>> verifyPasswordAndSendOtp(@Valid @RequestBody PasswordLoginRequest request) {
         String username = request.getUsername() != null ? request.getUsername().trim() : "";
         
         try {
@@ -63,7 +65,7 @@ public class VerificationController {
             return ResponseEntity.badRequest().body(ApiResponse.<String>error("Invalid username or password"));
         }
 
-        User user = userRepository.findByUsernameAndStatus(username, true).orElse(null);
+        User user = userRepository.findByUsernameOrEmailIgnoreCaseAndStatus(username, true).orElse(null);
         if (user == null) {
             return ResponseEntity.badRequest().body(ApiResponse.<String>error("User not found or inactive"));
         }
@@ -91,14 +93,14 @@ public class VerificationController {
     }
 
     @PostMapping("/verify-login-otp")
-    public ResponseEntity<ApiResponse<AuthResponse>> verifyLoginOtp(@RequestBody OtpVerifyRequest request) {
-        if (!otpService.validateOtp(request.getIdentifier(), request.getOtpCode())) {
-            return ResponseEntity.badRequest().body(ApiResponse.<AuthResponse>error("Invalid or expired OTP"));
-        }
-
-        User user = userRepository.findByEmailIgnoreCaseAndStatus(request.getIdentifier(), true).orElse(null);
+    public ResponseEntity<ApiResponse<AuthResponse>> verifyLoginOtp(@Valid @RequestBody OtpVerifyRequest request) {
+        User user = userRepository.findByUsernameOrEmailIgnoreCaseAndStatus(request.getIdentifier().trim(), true).orElse(null);
         if (user == null) {
             return ResponseEntity.badRequest().body(ApiResponse.<AuthResponse>error("User not found"));
+        }
+
+        if (!otpService.validateOtp(user.getEmail(), request.getOtpCode())) {
+            return ResponseEntity.badRequest().body(ApiResponse.<AuthResponse>error("Invalid or expired OTP"));
         }
 
         if (!user.isStatus()) {
@@ -109,7 +111,7 @@ public class VerificationController {
             return ResponseEntity.badRequest().body(ApiResponse.<AuthResponse>error("Please verify your email address before logging in. Check your inbox for the verification email."));
         }
 
-        otpService.invalidateOtp(request.getIdentifier());
+        otpService.invalidateOtp(user.getEmail());
 
         String token = jwtService.generateToken(user);
         RefreshToken refreshToken = refreshTokenService.issueToken(user);
@@ -166,7 +168,7 @@ public class VerificationController {
     }
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<ApiResponse<String>> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+    public ResponseEntity<ApiResponse<String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         String email = request.getEmail().trim().toLowerCase();
         
         userRepository.findByEmailIgnoreCaseAndStatus(email, true).ifPresent(user -> {
@@ -201,7 +203,7 @@ public class VerificationController {
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<ApiResponse<String>> resetPassword(@RequestBody ResetPasswordRequest request) {
+    public ResponseEntity<ApiResponse<String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(request.getToken()).orElse(null);
         
         if (resetToken == null) {

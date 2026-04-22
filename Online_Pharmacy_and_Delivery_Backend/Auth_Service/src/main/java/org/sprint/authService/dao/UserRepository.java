@@ -18,6 +18,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmailIgnoreCaseAndStatus(String email, boolean status);
 
+    @Query("SELECT u FROM User u WHERE (LOWER(u.username) = LOWER(:identifier) OR LOWER(u.email) = LOWER(:identifier)) AND u.status = :status")
+    Optional<User> findByUsernameOrEmailIgnoreCaseAndStatus(String identifier, boolean status);
+
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.addresses WHERE u.username = :username AND u.status = :status")
     Optional<User> findByUsernameIgnoreCaseAndStatusWithAddresses(String username, boolean status);
 

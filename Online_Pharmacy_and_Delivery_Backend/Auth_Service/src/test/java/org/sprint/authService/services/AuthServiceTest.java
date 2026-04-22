@@ -49,6 +49,7 @@ class AuthServiceTest {
                 .email("demo@example.com")
                 .role("CUSTOMER")
                 .status(true)
+                .emailVerified(true)
                 .build();
 
         RefreshToken refreshToken = RefreshToken.builder()
