@@ -75,7 +75,7 @@ class UserServiceTest {
         });
         when(verificationService.createEmailVerificationToken(1L)).thenReturn("verification-token");
         when(verificationService.getVerificationUrl("verification-token"))
-                .thenReturn("http://localhost:8081/api/auth/verify-email?token=verification-token");
+                .thenReturn("http://localhost:5173/verify-email?token=verification-token");
 
         var response = userService.addUser(request);
 

@@ -27,8 +27,8 @@ public class VerificationService {
     @Value("${verification.token.expiration-hours:24}")
     private int tokenExpirationHours;
 
-    @Value("${app.base-url:http://localhost:8081}")
-    private String baseUrl;
+    @Value("${app.frontend-base-url:http://localhost:5173}")
+    private String frontendBaseUrl;
 
     public String createEmailVerificationToken(Long userId) {
         String token = generateSecureToken();
@@ -75,7 +75,7 @@ public class VerificationService {
     }
 
     public String getVerificationUrl(String token) {
-        return baseUrl + "/api/auth/verify-email?token=" + token;
+        return frontendBaseUrl + "/verify-email?token=" + token;
     }
 
     private String generateSecureToken() {
