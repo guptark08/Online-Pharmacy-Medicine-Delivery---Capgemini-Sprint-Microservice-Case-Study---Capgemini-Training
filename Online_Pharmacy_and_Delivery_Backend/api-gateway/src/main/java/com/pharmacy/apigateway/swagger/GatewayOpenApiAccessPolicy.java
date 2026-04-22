@@ -28,6 +28,12 @@ public class GatewayOpenApiAccessPolicy {
         if (path.startsWith("/api/auth/signup")
                 || path.startsWith("/api/auth/login")
                 || path.startsWith("/api/auth/signin")
+                || path.startsWith("/api/auth/verify-password-then-send-otp")
+                || path.startsWith("/api/auth/verify-login-otp")
+                || path.startsWith("/api/auth/verify-email")
+                || path.startsWith("/api/auth/resend-verification")
+                || path.startsWith("/api/auth/forgot-password")
+                || path.startsWith("/api/auth/reset-password")
                 || path.startsWith("/api/auth/refresh")) {
             return ApiAccessLevel.PUBLIC;
         }

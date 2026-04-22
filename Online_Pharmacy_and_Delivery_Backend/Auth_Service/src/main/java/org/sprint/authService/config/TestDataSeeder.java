@@ -46,8 +46,8 @@ public class TestDataSeeder implements CommandLineRunner {
             String rawPassword,
             String role) {
 
-        return userRepository.findAll().stream()
-                .filter(user -> username.equalsIgnoreCase(user.getUsername()))
+        User user = userRepository.findAll().stream()
+                .filter(existingUser -> username.equalsIgnoreCase(existingUser.getUsername()))
                 .findFirst()
                 .orElseGet(() -> userRepository.save(User.builder()
                         .username(username)
@@ -57,7 +57,15 @@ public class TestDataSeeder implements CommandLineRunner {
                         .password(passwordEncoder.encode(rawPassword))
                         .role(role)
                         .status(true)
+                        .emailVerified(true)
                         .build()));
+
+        if (user.getEmailVerified() == null || !user.getEmailVerified()) {
+            user.setEmailVerified(true);
+            user = userRepository.save(user);
+        }
+
+        return user;
     }
 
     private void ensureAddress(
