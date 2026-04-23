@@ -31,7 +31,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Required access: AUTHENTICATED. */
+        /** @description Required access: PUBLIC. */
         post: operations["verifyPasswordAndSendOtp"];
         delete?: never;
         options?: never;
@@ -48,7 +48,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Required access: AUTHENTICATED. */
+        /** @description Required access: PUBLIC. */
         post: operations["verifyLoginOtp"];
         delete?: never;
         options?: never;
@@ -82,7 +82,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Required access: AUTHENTICATED. */
+        /** @description Required access: PUBLIC. */
         post: operations["resetPassword"];
         delete?: never;
         options?: never;
@@ -99,7 +99,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Required access: AUTHENTICATED. */
+        /** @description Required access: PUBLIC. */
         post: operations["resendVerification"];
         delete?: never;
         options?: never;
@@ -150,7 +150,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Required access: AUTHENTICATED. */
+        /** @description Required access: PUBLIC. */
         post: operations["forgotPassword"];
         delete?: never;
         options?: never;
@@ -200,7 +200,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Required access: AUTHENTICATED. */
+        /** @description Required access: PUBLIC. */
         get: operations["verifyEmail"];
         put?: never;
         post?: never;
@@ -282,9 +282,8 @@ export interface components {
             data?: string;
         };
         OtpVerifyRequest: {
-            identifier?: string;
-            otpCode?: string;
-            purpose?: string;
+            identifier: string;
+            otpCode: string;
         };
         ApiResponseAuthResponse: {
             success?: boolean;
