@@ -2,7 +2,6 @@ import { create } from "zustand"
 import { persist, createJSONStorage } from "zustand/middleware"
 import type { AuthUser, AuthStatus, Role } from "@/features/auth/types"
 
-// Shape of the backend's AuthResponse — what /verify-login-otp returns
 interface AuthResponsePayload {
   token?: string
   refreshToken?: string
@@ -12,22 +11,20 @@ interface AuthResponsePayload {
   role?: string
 }
 
-// What the store exposes to components
 interface AuthState {
-  // state
   accessToken: string | null
   refreshToken: string | null
   user: AuthUser | null
   status: AuthStatus
 
-  // actions
   setSession: (response: AuthResponsePayload) => void
   setTokens: (accessToken: string, refreshToken: string) => void
+  setUser: (user: AuthUser) => void
   setStatus: (status: AuthStatus) => void
+  hydrate: () => void
   clear: () => void
 }
 
-// Role normalization — backend sometimes returns "ROLE_ADMIN", we want "ADMIN"
 function normalizeRole(role: string | undefined): Role {
   if (!role) return "CUSTOMER"
   const cleaned = role.trim().toUpperCase().replace(/^ROLE_/, "")
@@ -36,21 +33,17 @@ function normalizeRole(role: string | undefined): Role {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
-      // initial state
+    (set, get) => ({
       accessToken: null,
       refreshToken: null,
       user: null,
       status: "idle",
 
-      // actions
       setSession: (response) => {
         if (!response.token || !response.refreshToken || !response.userId) {
-          // Defensive: if backend sends a malformed response, don't corrupt the store
           console.error("setSession called with incomplete AuthResponse", response)
           return
         }
-
         set({
           accessToken: response.token,
           refreshToken: response.refreshToken,
@@ -67,7 +60,18 @@ export const useAuthStore = create<AuthState>()(
       setTokens: (accessToken, refreshToken) =>
         set({ accessToken, refreshToken, status: "authenticated" }),
 
+      setUser: (user) => set({ user }),
+
       setStatus: (status) => set({ status }),
+
+      // Flip out of "idle" based on what rehydrated from localStorage.
+      // Called once on app boot.
+      hydrate: () => {
+        const { accessToken, user } = get()
+        set({
+          status: accessToken && user ? "authenticated" : "unauthenticated",
+        })
+      },
 
       clear: () =>
         set({
@@ -78,10 +82,8 @@ export const useAuthStore = create<AuthState>()(
         }),
     }),
     {
-      name: "pharmacy-auth",             // localStorage key
+      name: "pharmacy-auth",
       storage: createJSONStorage(() => localStorage),
-      // Only persist tokens + user. Status should always start as "idle" on reload,
-      // then the app reconciles on boot (we'll wire that up later).
       partialize: (state) => ({
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
