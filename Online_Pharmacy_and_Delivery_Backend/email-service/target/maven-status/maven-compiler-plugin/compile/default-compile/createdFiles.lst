@@ -1,0 +1,14 @@
+com/pharmacy/email/dto/EmailVerificationEvent.class
+com/pharmacy/email/EmailServiceApplication.class
+com/pharmacy/email/listener/EmailEventListener.class
+com/pharmacy/email/dto/EmailVerificationEvent$EmailVerificationEventBuilder.class
+com/pharmacy/email/dto/OtpDeliveryEvent$OtpDeliveryEventBuilder.class
+com/pharmacy/email/config/RabbitEventConfig.class
+com/pharmacy/email/dto/LoginAlertEvent.class
+com/pharmacy/email/dto/PasswordResetEvent.class
+com/pharmacy/email/config/EmailConfig.class
+com/pharmacy/email/dto/LoginAlertEvent$LoginAlertEventBuilder.class
+com/pharmacy/email/dto/PasswordResetEvent$PasswordResetEventBuilder.class
+com/pharmacy/email/service/EmailSenderService.class
+com/pharmacy/email/dto/OtpDeliveryEvent.class
+com/pharmacy/email/config/SecurityConfig.class

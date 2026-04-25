@@ -4,7 +4,6 @@ import com.pharmacy.email.dto.EmailVerificationEvent;
 import com.pharmacy.email.dto.LoginAlertEvent;
 import com.pharmacy.email.dto.OtpDeliveryEvent;
 import com.pharmacy.email.dto.PasswordResetEvent;
-import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,69 +22,101 @@ public class EmailSenderService {
     @Value("${app.email.from-name:Pharmacy System}")
     private String fromName;
 
-    @Value("${app.email.from-address:noreply@pharmacy.com}")
+    @Value("${app.email.from-address:}")
     private String fromAddress;
 
-    public void sendEmailVerification(EmailVerificationEvent event) {
+    @Value("${spring.mail.username:}")
+    private String mailUsername;
+
+    @Value("${spring.mail.password:}")
+    private String mailPassword;
+
+    public boolean sendEmailVerification(EmailVerificationEvent event) {
         log.info("Sending email verification to: {}", event.getEmail());
-        try {
-            String subject = "Verify Your Email Address - Pharmacy System";
-            String body = buildEmailVerificationBody(event);
-            sendHtmlEmail(event.getEmail(), subject, body);
+        String subject = "Verify Your Email Address - Pharmacy System";
+        String body = buildEmailVerificationBody(event);
+        if (sendHtmlEmail(event.getEmail(), subject, body)) {
             log.info("Email verification sent successfully to: {}", event.getEmail());
-        } catch (Exception e) {
-            log.error("Failed to send email verification to: {}", event.getEmail(), e);
+            return true;
+        } else {
+            log.warn("Email verification delivery failed for: {}", event.getEmail());
+            return false;
         }
     }
 
-    public void sendLoginAlert(LoginAlertEvent event) {
+    public boolean sendLoginAlert(LoginAlertEvent event) {
         log.info("Sending login alert to: {}", event.getEmail());
-        try {
-            String subject = "New Login to Your Pharmacy Account";
-            String body = buildLoginAlertBody(event);
-            sendHtmlEmail(event.getEmail(), subject, body);
+        String subject = "New Login to Your Pharmacy Account";
+        String body = buildLoginAlertBody(event);
+        if (sendHtmlEmail(event.getEmail(), subject, body)) {
             log.info("Login alert sent successfully to: {}", event.getEmail());
-        } catch (Exception e) {
-            log.error("Failed to send login alert to: {}", event.getEmail(), e);
+            return true;
+        } else {
+            log.warn("Login alert delivery failed for: {}", event.getEmail());
+            return false;
         }
     }
 
-    public void sendOtpEmail(OtpDeliveryEvent event) {
+    public boolean sendOtpEmail(OtpDeliveryEvent event) {
         log.info("Sending OTP email to: {}", event.getEmail());
-        try {
-            String subject = "Your OTP Code - Pharmacy System";
-            String body = buildOtpEmailBody(event);
-            sendHtmlEmail(event.getEmail(), subject, body);
+        String subject = "Your OTP Code - Pharmacy System";
+        String body = buildOtpEmailBody(event);
+        if (sendHtmlEmail(event.getEmail(), subject, body)) {
             log.info("OTP email sent successfully to: {}", event.getEmail());
-        } catch (Exception e) {
-            log.error("Failed to send OTP email to: {}", event.getEmail(), e);
+            return true;
+        } else {
+            log.warn("OTP email delivery failed for: {}", event.getEmail());
+            return false;
         }
     }
 
-    public void sendPasswordResetEmail(PasswordResetEvent event) {
+    public boolean sendPasswordResetEmail(PasswordResetEvent event) {
         log.info("Sending password reset email to: {}", event.getEmail());
-        try {
-            String subject = "Reset Your Password - Pharmacy System";
-            String body = buildPasswordResetBody(event);
-            sendHtmlEmail(event.getEmail(), subject, body);
+        String subject = "Reset Your Password - Pharmacy System";
+        String body = buildPasswordResetBody(event);
+        if (sendHtmlEmail(event.getEmail(), subject, body)) {
             log.info("Password reset email sent successfully to: {}", event.getEmail());
-        } catch (Exception e) {
-            log.error("Failed to send password reset email to: {}", event.getEmail(), e);
+            return true;
+        } else {
+            log.warn("Password reset email delivery failed for: {}", event.getEmail());
+            return false;
         }
     }
 
-    private void sendHtmlEmail(String to, String subject, String htmlBody) {
+    private boolean sendHtmlEmail(String to, String subject, String htmlBody) {
+        if (mailUsername == null || mailUsername.isBlank() || mailPassword == null || mailPassword.isBlank()) {
+            log.error("SMTP credentials are missing. Set MAIL_USERNAME and MAIL_PASSWORD before sending emails.");
+            return false;
+        }
+
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(fromAddress, fromName);
+            String senderAddress = resolveSenderAddress();
+            if (fromName != null && !fromName.isBlank()) {
+                helper.setFrom(senderAddress, fromName);
+            } else {
+                helper.setFrom(senderAddress);
+            }
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
             mailSender.send(message);
+            return true;
         } catch (Exception e) {
             log.error("Failed to send email to: {}", to, e);
+            return false;
         }
+    }
+
+    private String resolveSenderAddress() {
+        if (fromAddress != null && !fromAddress.isBlank()) {
+            return fromAddress;
+        }
+        if (mailUsername != null && !mailUsername.isBlank()) {
+            return mailUsername;
+        }
+        return "noreply@pharmacy.com";
     }
 
     private String buildEmailVerificationBody(EmailVerificationEvent event) {

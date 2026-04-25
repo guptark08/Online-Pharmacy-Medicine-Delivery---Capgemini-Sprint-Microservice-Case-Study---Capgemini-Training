@@ -14,8 +14,6 @@ const queryClient = new QueryClient({
   },
 })
 
-// Separate component so useBootAuth runs inside QueryClientProvider
-// (it uses React Query under the hood).
 function AppShell() {
   useBootAuth()
   return <RouterProvider router={router} />

@@ -1,0 +1,209 @@
+server:
+  port: 8080
+
+spring:
+  main:
+    lazy-initialization: true
+  application:
+    name: api-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:2s}
+      repositories:
+        enabled: false
+  cloud:
+    gateway:
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        corsConfigurations:
+          '[/**]':
+            allowedOriginPatterns:
+              - ${GATEWAY_ALLOWED_ORIGIN_PATTERN:http://localhost:*}
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - '*'
+            exposedHeaders:
+              - Authorization
+              - Content-Type
+            allowCredentials: true
+      routes:
+        - id: auth-service-route
+          uri: ${AUTH_SERVICE_URI:http://auth-service:8081}
+          predicates:
+            - Path=/api/auth/**,/api/address/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        - id: catalog-and-prescription-service-route
+          uri: ${CATALOG_SERVICE_URI:http://catalog-service:8082}
+          predicates:
+            - Path=/api/catalog/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: catalogServiceCircuitBreaker
+                fallbackUri: forward:/fallback/catalog
+
+        - id: order-and-delivery-service-route
+          uri: ${ORDER_SERVICE_URI:http://order-service:8083}
+          predicates:
+            - Path=/api/orders/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: orderServiceCircuitBreaker
+                fallbackUri: forward:/fallback/order
+
+        - id: admin-service-route
+          uri: ${ADMIN_SERVICE_URI:http://admin-service:8084}
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: adminServiceCircuitBreaker
+                fallbackUri: forward:/fallback/admin
+
+        - id: email-service-route
+          uri: ${EMAIL_SERVICE_URI:http://email-service:8085}
+          predicates:
+            - Path=/api/email/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: emailServiceCircuitBreaker
+                fallbackUri: forward:/fallback/email
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://${EUREKA_USERNAME:eureka}:${EUREKA_PASSWORD:eureka}@localhost:8761/eureka}
+
+jwt:
+  secret: ${JWT_SECRET:qBc8HQhVL9u+uBUPltUg8arrAZFVcSWDocPzkWmAKmc=}
+  revocation:
+    enabled: ${JWT_REVOCATION_ENABLED:false}
+    jti-prefix: ${JWT_REVOCATION_JTI_PREFIX:jwt:revoked:jti:}
+    hash-prefix: ${JWT_REVOCATION_HASH_PREFIX:jwt:revoked:hash:}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+    persist-authorization: true
+    urls:
+      - name: Auth Service
+        url: /gateway-docs/auth-service
+      - name: Catalog Service
+        url: /gateway-docs/catalog-service
+      - name: Order Service
+        url: /gateway-docs/order-service
+      - name: Admin Service
+        url: /gateway-docs/admin-service
+      - name: Email Service
+        url: /gateway-docs/email-service
+
+gateway:
+  ratelimit:
+    auth-per-minute: ${GATEWAY_RATELIMIT_AUTH_PER_MINUTE:120}
+    catalog-per-minute: ${GATEWAY_RATELIMIT_CATALOG_PER_MINUTE:300}
+    order-per-minute: ${GATEWAY_RATELIMIT_ORDER_PER_MINUTE:150}
+    admin-per-minute: ${GATEWAY_RATELIMIT_ADMIN_PER_MINUTE:60}
+    email-per-minute: ${GATEWAY_RATELIMIT_EMAIL_PER_MINUTE:300}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      authServiceCircuitBreaker:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+      catalogServiceCircuitBreaker:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+      orderServiceCircuitBreaker:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+      adminServiceCircuitBreaker:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+      emailServiceCircuitBreaker:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+  timelimiter:
+    instances:
+      authServiceCircuitBreaker:
+        timeoutDuration: 4s
+      catalogServiceCircuitBreaker:
+        timeoutDuration: 4s
+      orderServiceCircuitBreaker:
+        timeoutDuration: 5s
+      adminServiceCircuitBreaker:
+        timeoutDuration: 5s
+      emailServiceCircuitBreaker:
+        timeoutDuration: 5s
+
+management:
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
+  endpoint:
+    prometheus:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+observability:
+  loki:
+    enabled: ${LOKI_ENABLED:true}
+    url: ${LOKI_URL:http://localhost:3100/loki/api/v1/push}
+
+logging:
+  level:
+    root: ERROR
+    org.springframework: ERROR

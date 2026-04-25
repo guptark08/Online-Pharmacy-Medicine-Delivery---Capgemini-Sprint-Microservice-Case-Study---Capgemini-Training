@@ -1,32 +1,36 @@
+
+import { useLogout } from "@/features/auth/api/useLogout"
 import { useAuthStore } from "@/shared/stores/authStore"
+import { Button } from "@/shared/ui/button"
 
 export default function HomePage() {
-  const { user, status, clear } = useAuthStore()
-  const setSession = useAuthStore((s) => s.setSession)
+  // Pull the user from the global auth stat
+  const user = useAuthStore((s) => s.user)
+  
+  // Grab the logout mutation
+  const { mutate: logout, isPending } = useLogout()
 
   return (
-    <div className="p-8 space-y-4">
-      <h1 className="text-3xl font-bold">Pharmacy</h1>
-      <div>Status: {status}</div>
-      <div>User: {user ? user.username : "(none)"}</div>
+    <div className="flex min-h-screen flex-col items-center justify-center p-4">
+      <div className="w-full max-w-sm space-y-6 text-center">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">
+            Hi, {user?.username}
+          </h1>
+          <p className="text-gray-500">
+            Role: <span className="font-medium text-foreground">{user?.role}</span>
+          </p>
+        </div>
 
-      <button
-        className="border px-4 py-2"
-        onClick={() => setSession({
-          token: "fake-jwt",
-          refreshToken: "fake-refresh",
-          userId: 1,
-          username: "alice",
-          email: "alice@test.com",
-          role: "CUSTOMER",
-        })}
-      >
-        Fake Login
-      </button>
-
-      <button className="border px-4 py-2" onClick={clear}>
-        Logout
-      </button>
+        <Button 
+          variant="secondary" 
+          className="w-full" 
+          onClick={() => logout()} 
+          disabled={isPending}
+        >
+          {isPending ? "Logging out..." : "Log out"}
+        </Button>
+      </div>
     </div>
   )
 }

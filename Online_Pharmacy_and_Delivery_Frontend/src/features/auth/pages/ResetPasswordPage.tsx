@@ -50,12 +50,16 @@ export default function ResetPasswordPage() {
   const onSubmit = (input: ResetPasswordInput) => {
     // Strip confirmPassword — backend doesn't want it
     const { token: t, newPassword } = input
+    
     resetPassword(
       { token: t, newPassword },
       {
         onSuccess: () => {
-          // Give user a beat to read the success state, then send to login
-          setTimeout(() => navigate("/login", { replace: true }), 1500)
+          // Immediately navigate, passing state so LoginPage can show a success message
+          navigate("/login", { 
+            replace: true, 
+            state: { resetSuccess: true } 
+          })
         },
       }
     )
