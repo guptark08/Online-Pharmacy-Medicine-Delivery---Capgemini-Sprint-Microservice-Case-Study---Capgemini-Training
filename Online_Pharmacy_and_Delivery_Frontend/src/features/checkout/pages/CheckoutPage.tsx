@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useNavigate, Link } from "react-router-dom"
 import { useCart } from "@/features/cart/api/useCart"
 import { useAddresses } from "../api/useAddresses"
-import { useMyPrescriptions } from "../api/useMyPrescriptions"
+import { useMyPrescriptions } from "@/features/prescriptions/api/useMyPrescriptions"
 import { useCheckout } from "../api/useCheckout"
 import { useInitiatePayment } from "../api/useInitiatePayment"
 import { checkoutFormSchema, type CheckoutFormValues, type CheckoutFormInput } from "../schemas"
@@ -46,6 +46,7 @@ export default function CheckoutPage() {
   const steps = cart?.hasRxItems ? STEPS_WITH_RX : STEPS_NO_RX
   const [stepIdx, setStepIdx] = useState(0)
   const currentStep = steps[stepIdx]
+  const [rxError, setRxError] = useState("")
 
   const { register, watch, setValue, trigger, handleSubmit, formState: { errors } } =
     useForm<CheckoutFormInput, any, CheckoutFormValues>({
@@ -60,6 +61,12 @@ export default function CheckoutPage() {
   const selectedMethod = watch("paymentMethod")
 
   const advance = async () => {
+    if (currentStep === "prescription" && cart?.hasRxItems && !selectedRxId && approvedPrescriptions.length > 0) {
+      setRxError("Please select an approved prescription to continue")
+      return
+    }
+    setRxError("")
+
     const fieldMap: Record<Step, (keyof CheckoutFormValues)[]> = {
       address:      addressMode === "existing" ? ["addressId"] : ["newAddress"],
       slot:         ["deliverySlot"],
@@ -83,8 +90,8 @@ export default function CheckoutPage() {
       if (!order.id) throw new Error("No order ID returned from server")
       await initiatePayment.mutateAsync({ orderId: order.id, method: values.paymentMethod })
       navigate(`/orders/${order.id}`, { state: { fromCheckout: true } })
-    } catch {
-      // Error displayed via mutation state below
+    } catch (_err) {
+      // Errors surfaced via checkout.isError / initiatePayment.isError below
     }
   }
 
@@ -215,7 +222,7 @@ export default function CheckoutPage() {
             ) : (
               <div className="space-y-2">
                 {approvedPrescriptions.map((rx) => (
-                  <div key={rx.id} onClick={() => setValue("prescriptionId", rx.id)}
+                  <div key={rx.id} onClick={() => { setValue("prescriptionId", rx.id); setRxError("") }}
                     className={`cursor-pointer rounded-xl border p-3 transition-colors ${selectedRxId === rx.id ? "border-green-500 bg-green-50" : "hover:bg-slate-50"}`}
                   >
                     <p className="text-sm font-medium">{rx.fileName ?? `Prescription #${rx.id}`}</p>
@@ -224,6 +231,7 @@ export default function CheckoutPage() {
                     </p>
                   </div>
                 ))}
+                {rxError && <p className="text-xs text-red-600">{rxError}</p>}
               </div>
             )}
           </div>

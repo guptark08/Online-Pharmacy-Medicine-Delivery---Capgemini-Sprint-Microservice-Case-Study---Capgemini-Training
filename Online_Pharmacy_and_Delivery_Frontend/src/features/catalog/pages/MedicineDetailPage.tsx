@@ -134,9 +134,9 @@ export default function MedicineDetailPage() {
           </div>
 
           <button
-            onClick={() =>
-              medicine.id && addToCart.mutate({ medicineId: medicine.id, quantity: 1 })
-            }
+            onClick={() => {
+              if (medicine.id != null) addToCart.mutate({ medicineId: medicine.id, quantity: 1 })
+            }}
             disabled={addToCart.isPending || medicine.stock === 0}
             className="w-full py-3 font-semibold bg-green-600 text-white rounded-lg
               hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

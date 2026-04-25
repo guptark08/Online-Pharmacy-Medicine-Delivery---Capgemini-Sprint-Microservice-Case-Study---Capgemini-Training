@@ -4,9 +4,9 @@ import { useLogout } from "@/features/auth/api/useLogout"
 import { useCart } from "@/features/cart/api/useCart"
 
 export default function Navbar() {
-  const location  = useLocation()
-  const user      = useAuthStore((s) => s.user)
-  const logout    = useLogout()
+  const location = useLocation()
+  const user     = useAuthStore((s) => s.user)
+  const logout   = useLogout()
   const { data: cart } = useCart()
 
   const cartCount = cart?.totalItems ?? 0
@@ -24,6 +24,35 @@ export default function Navbar() {
     </Link>
   )
 
+  // Admin users get a minimal nav — they work in the admin panel, not the storefront
+  if (user?.role === "ADMIN") {
+    return (
+      <header className="sticky top-0 z-50 bg-white border-b shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+          <Link to="/admin/dashboard" className="font-bold text-green-700 text-lg tracking-tight">
+            💊 PharmaCare
+          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              to="/admin/dashboard"
+              className="text-sm font-medium text-slate-600 hover:text-slate-900"
+            >
+              Admin Panel
+            </Link>
+            <span className="text-sm text-slate-500 hidden sm:inline">{user.username}</span>
+            <button
+              onClick={() => logout.mutate()}
+              disabled={logout.isPending}
+              className="text-sm text-slate-500 hover:text-slate-900 transition-colors disabled:opacity-50"
+            >
+              {logout.isPending ? "…" : "Log out"}
+            </button>
+          </div>
+        </div>
+      </header>
+    )
+  }
+
   return (
     <header className="sticky top-0 z-50 bg-white border-b shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
@@ -37,6 +66,7 @@ export default function Navbar() {
         <nav className="flex items-center gap-5">
           {navLink("/catalog", "Catalog")}
           {user && navLink("/orders", "Orders")}
+          {user && navLink("/prescriptions", "Prescriptions")}
         </nav>
 
         {/* Right side: cart + user */}
