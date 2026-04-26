@@ -15,6 +15,9 @@ services:
       - "3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./Online_Pharmacy_and_Delivery_Backend/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro,z
+      - ./Online_Pharmacy_and_Delivery_Backend/seed_medicines.sql:/docker-entrypoint-initdb.d/02-seed-catalog.sql:ro,z
+      - ./Online_Pharmacy_and_Delivery_Backend/seed_admin_db.sql:/docker-entrypoint-initdb.d/03-seed-admin.sql:ro,z
     healthcheck:
       test:
         [

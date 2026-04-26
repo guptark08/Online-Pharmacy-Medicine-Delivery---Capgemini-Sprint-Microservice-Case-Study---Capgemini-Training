@@ -41,6 +41,23 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Users fetched successfully", userService.getAllUsers()));
     }
 
+    @GetMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<UserResponse>> getUserById(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        User user = userService.getUserById(id);
+        UserResponse response = UserResponse.builder()
+                .id(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .username(user.getUsername())
+                .mobile(user.getMobile())
+                .role(RoleNormalizer.normalizeOrDefault(user.getRole()))
+                .status(user.isStatus())
+                .emailVerified(user.getEmailVerified())
+                .build();
+        return ResponseEntity.ok(ApiResponse.success("User fetched successfully", response));
+    }
+
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(Authentication authentication) {
         User current = userService.getActiveByUsername(authentication.getName());

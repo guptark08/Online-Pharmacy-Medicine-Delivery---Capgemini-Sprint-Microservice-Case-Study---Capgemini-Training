@@ -61,6 +61,12 @@ public class OrderService {
                 .toList();
     }
 
+    public OrderResponse getOrderByIdForAdmin(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        return toResponse(order);
+    }
+
     public OrderResponse getOrderById(Long userId, Long orderId) {
         Order order = orderRepository.findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
@@ -209,22 +215,32 @@ public class OrderService {
     private OrderResponse toResponse(Order order) {
         OrderResponse response = new OrderResponse();
         response.setId(order.getId());
+        response.setUserId(order.getUserId());
         response.setStatus(order.getStatus());
         response.setDeliveryAddress(order.getDeliveryAddress());
         response.setDeliverySlot(order.getDeliverySlot());
+        response.setPincode(order.getDeliveryPincode());
         response.setTotalAmount(order.getTotalAmount());
         response.setFinalAmount(order.getFinalAmount());
         response.setCreatedAt(order.getCreatedAt());
+
+        if (order.getPayment() != null) {
+            response.setPaymentMethod(order.getPayment().getMethod());
+            response.setPaymentId(order.getPayment().getTransactionId());
+        }
+        // userName / userEmail are populated by the admin-service via its own
+        // cross-service call (with the real admin JWT). Not populated here.
 
         var items = orderItemRepository.findByOrderId(order.getId())
                 .stream()
                 .map(item -> {
                     OrderResponse.OrderItemResponse itemResponse = new OrderResponse.OrderItemResponse();
+                    itemResponse.setId(item.getId());
                     itemResponse.setMedicineId(item.getMedicineId());
                     itemResponse.setMedicineName(item.getMedicineName());
                     itemResponse.setQuantity(item.getQuantity());
                     itemResponse.setUnitPrice(item.getUnitPrice());
-                    itemResponse.setSubtotal(item.getSubtotal());
+                    itemResponse.setTotalPrice(item.getSubtotal());
                     return itemResponse;
                 })
                 .toList();

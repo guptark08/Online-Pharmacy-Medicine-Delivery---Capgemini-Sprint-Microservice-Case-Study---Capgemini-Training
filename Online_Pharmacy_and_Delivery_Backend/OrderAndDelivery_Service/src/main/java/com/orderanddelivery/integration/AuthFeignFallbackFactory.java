@@ -14,6 +14,13 @@ public class AuthFeignFallbackFactory implements FallbackFactory<AuthFeignClient
     public AuthFeignClient create(Throwable cause) {
         return new AuthFeignClient() {
             @Override
+            public Map<String, Object> getUserById(String authorizationHeader, Long userId) {
+                throw new ExternalServiceException(
+                        "Auth service fallback triggered while fetching user by id",
+                        cause);
+            }
+
+            @Override
             public Map<String, Object> getCurrentUserAddresses(String authorizationHeader) {
                 throw new ExternalServiceException(
                         "Auth service fallback triggered while fetching user addresses",

@@ -218,22 +218,33 @@ export interface components {
     schemas: {
         OrderItemResponse: {
             /** Format: int64 */
+            id?: number;
+            /** Format: int64 */
             medicineId?: number;
             medicineName?: string;
             /** Format: int32 */
             quantity?: number;
             unitPrice?: number;
+            /** Renamed from subtotal in backend v2 */
+            totalPrice?: number;
             subtotal?: number;
         };
         OrderResponse: {
             /** Format: int64 */
             id?: number;
+            /** Format: int64 */
+            userId?: number;
+            userName?: string;
+            userEmail?: string;
             /** @enum {string} */
             status?: "DRAFT" | "CHECKOUT_STARTED" | "PRESCRIPTION_PENDING" | "PRESCRIPTION_APPROVED" | "PRESCRIPTION_REJECTED" | "PAYMENT_PENDING" | "PAID" | "PACKED" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CUSTOMER_CANCELLED" | "ADMIN_CANCELLED" | "PAYMENT_FAILED" | "RETURN_REQUESTED" | "REFUND_INITIATED" | "REFUND_COMPLETED";
             deliveryAddress?: string;
             deliverySlot?: string;
+            pincode?: string;
             totalAmount?: number;
             finalAmount?: number;
+            paymentMethod?: string;
+            paymentId?: string;
             /** Format: date-time */
             createdAt?: string;
             items?: components["schemas"]["OrderItemResponse"][];

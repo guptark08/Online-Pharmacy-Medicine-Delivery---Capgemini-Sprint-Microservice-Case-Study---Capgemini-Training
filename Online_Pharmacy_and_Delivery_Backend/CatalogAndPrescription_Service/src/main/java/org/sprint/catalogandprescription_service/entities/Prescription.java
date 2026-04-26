@@ -61,6 +61,12 @@ public class Prescription {
 	@Column(name = "order_id")
 	private Long orderId;
 
+	@Column(name = "doctor_name")
+	private String doctorName;
+
+	@Column(name = "doctor_reg_number")
+	private String doctorRegNumber;
+
 	@Column(name = "uploaded_at", updatable = false)
 	private LocalDateTime uploadedAt;
 

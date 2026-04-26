@@ -23,6 +23,7 @@ const AdminOrderDetailPage    = lazy(() => import("@/features/admin/pages/AdminO
 const AdminPrescriptionsPage  = lazy(() => import("@/features/admin/pages/AdminPrescriptionsPage"))
 const AdminMedicinesPage      = lazy(() => import("@/features/admin/pages/AdminMedicinesPage"))
 const AdminReportsPage        = lazy(() => import("@/features/admin/pages/AdminReportsPage"))
+const AdminUsersPage          = lazy(() => import("@/features/admin/pages/AdminUsersPage"))
 
 // ── Auth pages (eager — on the critical login path) ───────────────────────
 import HomePage from "@/features/home/pages/HomePage"
@@ -121,6 +122,7 @@ export const router = createBrowserRouter([
       { path: "prescriptions", element: <Lazy><AdminPrescriptionsPage /></Lazy> },
       { path: "medicines",     element: <Lazy><AdminMedicinesPage /></Lazy> },
       { path: "reports",       element: <Lazy><AdminReportsPage /></Lazy> },
+      { path: "users",         element: <Lazy><AdminUsersPage /></Lazy> },
     ],
   },
 ])

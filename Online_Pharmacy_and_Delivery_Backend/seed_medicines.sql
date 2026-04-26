@@ -1,6 +1,8 @@
 -- Idempotent seed script for pharmacy_catalog_db.
 -- Safe for repeated runs: inserts only missing categories and medicines.
 
+USE pharmacy_catalog_db;
+
 START TRANSACTION;
 
 INSERT INTO categories (name, description, is_active)

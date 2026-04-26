@@ -3,6 +3,8 @@ package org.sprint.catalogandprescription_service.controller;
 import java.io.IOException;
 import java.util.List;
 
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -41,6 +43,24 @@ public class PrescriptionController {
         PrescriptionResponseDTO result = prescriptionService.uploadPrescription(file, extractCurrentUserId(currentUser));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Prescription uploaded successfully", result));
+    }
+
+    @GetMapping("/{id}/file")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER')")
+    @Operation(summary = "Download/view prescription file")
+    public ResponseEntity<Resource> getPrescriptionFile(
+            @PathVariable Long id,
+            @AuthenticationPrincipal JwtUserPrincipal currentUser) {
+        Long userId = extractCurrentUserId(currentUser);
+        boolean isAdmin = currentUser != null && "ADMIN".equalsIgnoreCase(
+                currentUser.role() != null ? currentUser.role().replace("ROLE_", "") : "");
+        Resource resource = prescriptionService.getPrescriptionFile(id, isAdmin ? null : userId);
+        String contentType = resource != null && resource.getFilename() != null
+                ? getContentType(resource.getFilename())
+                : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(resource);
     }
 
     @GetMapping("/my")
@@ -102,5 +122,14 @@ public class PrescriptionController {
             throw new IllegalStateException("Unable to resolve authenticated user");
         }
         return currentUser.userId();
+    }
+
+    private String getContentType(String filename) {
+        if (filename == null) return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".pdf")) return "application/pdf";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".png")) return "image/png";
+        return MediaType.APPLICATION_OCTET_STREAM_VALUE;
     }
 }

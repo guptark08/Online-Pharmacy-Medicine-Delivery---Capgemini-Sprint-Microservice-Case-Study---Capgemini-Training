@@ -92,6 +92,12 @@ public class UserService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
     }
 
+    @Transactional(readOnly = true)
+    public User getUserById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new org.sprint.authService.exception.ResourceNotFoundException("User not found with id: " + id));
+    }
+
     private void validateUniqueness(UserRequest request) {
         if (userRepository.existsByEmailIgnoreCase(request.getEmail().trim())) {
             throw new DuplicateResourceException("Email already registered");

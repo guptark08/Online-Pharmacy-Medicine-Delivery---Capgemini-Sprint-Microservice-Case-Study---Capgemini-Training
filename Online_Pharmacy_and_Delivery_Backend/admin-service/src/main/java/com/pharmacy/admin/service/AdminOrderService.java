@@ -10,10 +10,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.pharmacy.admin.dto.request.OrderStatusUpdateDto;
+import com.pharmacy.admin.dto.response.OrderItemResponseDto;
 import com.pharmacy.admin.dto.response.OrderResponseDto;
 import com.pharmacy.admin.exception.BadRequestException;
 import com.pharmacy.admin.integration.CrossServiceAnalyticsClient;
 import com.pharmacy.admin.integration.RemoteOrderResponse;
+import com.pharmacy.admin.integration.RemoteOrderResponse.RemoteOrderItemResponse;
 
 import lombok.RequiredArgsConstructor;
 
@@ -106,6 +108,13 @@ public class AdminOrderService {
     }
 
     private OrderResponseDto mapRemoteToDto(RemoteOrderResponse remote) {
+        List<OrderItemResponseDto> items = null;
+        if (remote.getItems() != null) {
+            items = remote.getItems().stream()
+                    .map(this::mapRemoteItemToDto)
+                    .toList();
+        }
+
         return OrderResponseDto.builder()
                 .id(remote.getId())
                 .userId(remote.getUserId())
@@ -126,6 +135,19 @@ public class AdminOrderService {
                 .createdAt(remote.getCreatedAt() == null ? null : remote.getCreatedAt().toString())
                 .updatedAt(remote.getUpdatedAt() == null ? null : remote.getUpdatedAt().toString())
                 .deliveredAt(remote.getDeliveredAt() == null ? null : remote.getDeliveredAt().toString())
+                .items(items)
+                .build();
+    }
+
+    private OrderItemResponseDto mapRemoteItemToDto(RemoteOrderItemResponse item) {
+        return OrderItemResponseDto.builder()
+                .id(item.getId())
+                .medicineId(item.getMedicineId())
+                .medicineName(item.getMedicineName())
+                .medicineStrength(item.getMedicineStrength())
+                .quantity(item.getQuantity())
+                .unitPrice(item.getUnitPrice() != null ? item.getUnitPrice().doubleValue() : 0.0)
+                .totalPrice(item.getTotalPrice() != null ? item.getTotalPrice().doubleValue() : 0.0)
                 .build();
     }
 }

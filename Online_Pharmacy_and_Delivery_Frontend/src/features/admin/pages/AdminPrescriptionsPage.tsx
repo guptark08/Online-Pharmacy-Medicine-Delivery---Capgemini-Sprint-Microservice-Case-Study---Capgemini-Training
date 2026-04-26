@@ -1,6 +1,7 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAdminPrescriptions, useAdminPendingPrescriptions } from "../api/useAdminPrescriptions"
 import { useReviewPrescription } from "../api/useReviewPrescription"
+import { api } from "@/shared/api/client"
 import type { components } from "@/shared/types/api/admin"
 
 type PrescriptionResponseDto = components["schemas"]["PrescriptionResponseDto"]
@@ -11,6 +12,21 @@ const STATUS_COLOR: Record<string, string> = {
   REJECTED: "bg-red-100 text-red-800",
 }
 
+const IMAGE_TYPES = ["PNG", "JPG", "JPEG", "GIF", "WEBP"]
+
+function isImageType(fileType: string | null | undefined): boolean {
+  return IMAGE_TYPES.includes((fileType ?? "").toUpperCase())
+}
+
+// Fetches a file via the authenticated Axios client and opens it in a new tab.
+async function openFileAuthenticated(fileUrl: string) {
+  const response = await api.get(fileUrl, { responseType: "blob" })
+  const url = URL.createObjectURL(response.data)
+  window.open(url, "_blank")
+  // Keep URL alive briefly so the new tab can load it
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
 function ReviewModal({
   prescription,
   onClose,
@@ -19,8 +35,27 @@ function ReviewModal({
   onClose: () => void
 }) {
   const [decision, setDecision] = useState<"APPROVED" | "REJECTED">("APPROVED")
-  const [notes, setNotes] = useState("")
+  const [notes, setNotes]       = useState("")
+  const [blobUrl, setBlobUrl]   = useState<string | null>(null)
+  const [fileError, setFileError] = useState(false)
   const review = useReviewPrescription()
+
+  // Fetch the prescription file with the admin JWT on mount
+  useEffect(() => {
+    if (!prescription.fileUrl) return
+    let objectUrl: string | null = null
+
+    api.get(prescription.fileUrl, { responseType: "blob" })
+      .then((res) => {
+        objectUrl = URL.createObjectURL(res.data)
+        setBlobUrl(objectUrl)
+      })
+      .catch(() => setFileError(true))
+
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [prescription.fileUrl])
 
   const handleSubmit = () => {
     if (!prescription.id) return
@@ -31,8 +66,10 @@ function ReviewModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div role="dialog" aria-modal="true" aria-label={`Review Prescription #${prescription.id}`} className="bg-white rounded-2xl shadow-xl w-full max-w-md space-y-4 p-6">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div role="dialog" aria-modal="true" aria-label={`Review Prescription #${prescription.id}`}
+        className="bg-white rounded-2xl shadow-xl w-full max-w-2xl space-y-4 p-6 my-4">
+
         <h2 className="text-lg font-bold text-slate-800">Review Prescription #{prescription.id}</h2>
 
         <div className="text-sm text-slate-600 space-y-1">
@@ -40,20 +77,51 @@ function ReviewModal({
           <p><span className="font-medium">Uploaded:</span>{" "}
             {prescription.uploadedAt ? new Date(prescription.uploadedAt).toLocaleDateString() : "—"}
           </p>
-          {prescription.fileUrl && (
-            <p>
-              <a
-                href={prescription.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-green-600 underline"
-              >
-                View File ↗
-              </a>
-            </p>
+          {prescription.doctorName && (
+            <p><span className="font-medium">Doctor:</span> {prescription.doctorName}</p>
           )}
         </div>
 
+        {/* File preview — fetched via authenticated Axios */}
+        {prescription.fileUrl && (
+          <div className="border rounded-lg bg-slate-50 overflow-hidden">
+            {fileError ? (
+              <p className="text-xs text-slate-400 text-center py-6">File unavailable</p>
+            ) : !blobUrl ? (
+              <div className="h-24 flex items-center justify-center">
+                <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : isImageType(prescription.fileType) ? (
+              <div className="space-y-2 p-2">
+                <img
+                  src={blobUrl}
+                  alt={`Prescription #${prescription.id}`}
+                  className="max-h-80 mx-auto rounded-lg object-contain"
+                />
+                <div className="text-center">
+                  <button
+                    onClick={() => window.open(blobUrl, "_blank")}
+                    className="text-xs text-green-600 underline"
+                  >
+                    Open full size ↗
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-sm text-slate-500 mb-3">📄 {prescription.fileType ?? "Document"}</p>
+                <button
+                  onClick={() => window.open(blobUrl, "_blank")}
+                  className="text-sm text-green-600 underline hover:text-green-800"
+                >
+                  View / Download File ↗
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Decision buttons */}
         <div className="flex gap-2">
           {(["APPROVED", "REJECTED"] as const).map((d) => (
             <button
@@ -108,10 +176,9 @@ export default function AdminPrescriptionsPage() {
   const [tab, setTab] = useState<"pending" | "all">("pending")
   const [reviewing, setReviewing] = useState<PrescriptionResponseDto | null>(null)
 
-  const pendingQuery = useAdminPendingPrescriptions()
-  const allQuery     = useAdminPrescriptions()
-
-  const activeQuery  = tab === "pending" ? pendingQuery : allQuery
+  const pendingQuery  = useAdminPendingPrescriptions()
+  const allQuery      = useAdminPrescriptions()
+  const activeQuery   = tab === "pending" ? pendingQuery : allQuery
   const prescriptions = activeQuery.data ?? []
 
   return (
@@ -150,9 +217,7 @@ export default function AdminPrescriptionsPage() {
           <p className="text-4xl mb-2">📋</p>
           <p>{tab === "pending" ? "No prescriptions pending review." : "No prescriptions found."}</p>
           {activeQuery.isError && (
-            <p className="text-xs text-red-400">
-              Failed to load prescriptions. Please ensure backend services are running.
-            </p>
+            <p className="text-xs text-red-400">Failed to load prescriptions. Check backend services.</p>
           )}
         </div>
       )}
@@ -166,6 +231,11 @@ export default function AdminPrescriptionsPage() {
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[rx.status ?? ""] ?? "bg-slate-100 text-slate-700"}`}>
                   {rx.status}
                 </span>
+                {rx.fileType && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                    {rx.fileType}
+                  </span>
+                )}
               </div>
               <p className="text-sm text-slate-600">{rx.userEmail}</p>
               {rx.uploadedAt && (
@@ -177,14 +247,12 @@ export default function AdminPrescriptionsPage() {
                 <p className="text-xs text-red-600">Reason: {rx.rejectionReason}</p>
               )}
               {rx.fileUrl && (
-                <a
-                  href={rx.fileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-green-600 underline"
+                <button
+                  onClick={() => openFileAuthenticated(rx.fileUrl!)}
+                  className="text-xs text-green-600 underline hover:text-green-800"
                 >
                   View File ↗
-                </a>
+                </button>
               )}
             </div>
 

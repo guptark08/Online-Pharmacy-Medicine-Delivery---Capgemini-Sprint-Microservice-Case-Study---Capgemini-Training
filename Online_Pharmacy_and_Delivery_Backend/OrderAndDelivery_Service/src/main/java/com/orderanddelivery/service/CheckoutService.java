@@ -212,7 +212,7 @@ public class CheckoutService {
                     itemResponse.setMedicineName(item.getMedicineName());
                     itemResponse.setQuantity(item.getQuantity());
                     itemResponse.setUnitPrice(item.getUnitPrice());
-                    itemResponse.setSubtotal(item.getSubtotal());
+                    itemResponse.setTotalPrice(item.getSubtotal());
                     return itemResponse;
                 })
                 .toList();

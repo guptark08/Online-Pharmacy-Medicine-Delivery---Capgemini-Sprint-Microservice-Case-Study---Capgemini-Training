@@ -15,6 +15,8 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -247,17 +249,44 @@ public class PrescriptionService {
     }
 
     private PrescriptionResponseDTO convertToDTO(Prescription p) {
+        String fileUrl = "/api/catalog/prescriptions/" + p.getId() + "/file";
         return PrescriptionResponseDTO.builder()
                 .id(p.getId())
                 .customerId(p.getCustomerId())
                 .fileName(p.getFileName())
                 .fileType(p.getFileType())
                 .fileSize(p.getFileSize())
+                .fileUrl(fileUrl)
                 .status(p.getStatus().name())
                 .reviewNotes(p.getReviewNotes())
+                .doctorName(p.getDoctorName())
+                .doctorRegNumber(p.getDoctorRegNumber())
+                .reviewedByAdminId(p.getReviewedBy())
                 .uploadedAt(p.getUploadedAt())
                 .reviewedAt(p.getReviewedAt())
                 .build();
+    }
+
+    // Pass ownerUserId=null to skip ownership check (admin callers).
+    public Resource getPrescriptionFile(Long prescriptionId, Long ownerUserId) {
+        Prescription prescription = prescriptionRepository.findById(prescriptionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Prescription not found: " + prescriptionId));
+
+        if (ownerUserId != null && !ownerUserId.equals(prescription.getCustomerId())) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Access denied: prescription does not belong to this user");
+        }
+
+        try {
+            Path filePath = Paths.get(prescription.getFilePath()).toAbsolutePath().normalize();
+            Resource resource = new UrlResource(filePath.toUri());
+            if (resource.exists() && resource.isReadable()) {
+                return resource;
+            }
+        } catch (Exception e) {
+            throw new ResourceNotFoundException("Cannot read prescription file");
+        }
+        throw new ResourceNotFoundException("Prescription file not found");
     }
 }
 

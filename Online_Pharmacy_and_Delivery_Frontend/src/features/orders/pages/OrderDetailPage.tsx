@@ -101,7 +101,7 @@ export default function OrderDetailPage() {
                   {item.medicineName}
                   <span className="text-slate-400 ml-1">× {item.quantity}</span>
                 </span>
-                <span className="font-medium text-slate-800">₹{item.subtotal?.toFixed(2)}</span>
+                <span className="font-medium text-slate-800">₹{(item.totalPrice ?? item.subtotal)?.toFixed(2)}</span>
               </div>
             ))}
           </div>
