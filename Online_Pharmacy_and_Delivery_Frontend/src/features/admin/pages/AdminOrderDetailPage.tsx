@@ -5,28 +5,39 @@ import { useUpdateOrderStatus } from "../api/useUpdateOrderStatus"
 import { useCancelAdminOrder } from "../api/useCancelAdminOrder"
 
 const STATUS_COLOR: Record<string, string> = {
-  CHECKOUT_STARTED:    "bg-slate-100 text-slate-700",
-  PRESCRIPTION_PENDING:"bg-amber-100 text-amber-800",
-  PAYMENT_PENDING:     "bg-yellow-100 text-yellow-800",
-  PAID:                "bg-blue-100 text-blue-800",
-  PACKED:              "bg-purple-100 text-purple-800",
-  OUT_FOR_DELIVERY:    "bg-indigo-100 text-indigo-800",
-  DELIVERED:           "bg-green-100 text-green-800",
-  CUSTOMER_CANCELLED:  "bg-red-100 text-red-800",
-  ADMIN_CANCELLED:     "bg-red-100 text-red-800",
-  PAYMENT_FAILED:      "bg-red-100 text-red-800",
+  CHECKOUT_STARTED:      "bg-slate-100 text-slate-700",
+  PRESCRIPTION_PENDING:  "bg-amber-100 text-amber-800",
+  PRESCRIPTION_APPROVED: "bg-teal-100 text-teal-800",
+  PRESCRIPTION_REJECTED: "bg-rose-100 text-rose-800",
+  PAYMENT_PENDING:       "bg-yellow-100 text-yellow-800",
+  PAYMENT_FAILED:        "bg-red-100 text-red-800",
+  PAID:                  "bg-blue-100 text-blue-800",
+  PACKED:                "bg-purple-100 text-purple-800",
+  OUT_FOR_DELIVERY:      "bg-indigo-100 text-indigo-800",
+  DELIVERED:             "bg-green-100 text-green-800",
+  CUSTOMER_CANCELLED:    "bg-red-100 text-red-800",
+  ADMIN_CANCELLED:       "bg-red-100 text-red-800",
+  RETURN_REQUESTED:      "bg-orange-100 text-orange-800",
+  REFUND_INITIATED:      "bg-orange-100 text-orange-800",
+  REFUND_COMPLETED:      "bg-green-100 text-green-800",
 }
 
-const ALL_STATUSES = [
-  "CHECKOUT_STARTED",
-  "PAYMENT_PENDING",
-  "PAID",
-  "PACKED",
-  "OUT_FOR_DELIVERY",
-  "DELIVERED",
-  "CUSTOMER_CANCELLED",
-  "ADMIN_CANCELLED",
-  "PAYMENT_FAILED",
+// Only valid next-state transitions (mirrors backend validateTransition)
+const NEXT_STATUSES: Record<string, string[]> = {
+  PRESCRIPTION_PENDING:  ["PRESCRIPTION_APPROVED", "PRESCRIPTION_REJECTED"],
+  PRESCRIPTION_APPROVED: ["PAYMENT_PENDING"],
+  PAYMENT_PENDING:       ["PAID", "PAYMENT_FAILED"],
+  PAYMENT_FAILED:        ["PAID"],
+  PAID:                  ["PACKED"],
+  PACKED:                ["OUT_FOR_DELIVERY"],
+  OUT_FOR_DELIVERY:      ["DELIVERED"],
+  DELIVERED:             ["RETURN_REQUESTED"],
+  RETURN_REQUESTED:      ["REFUND_INITIATED"],
+  REFUND_INITIATED:      ["REFUND_COMPLETED"],
+}
+
+const TERMINAL_STATUSES = [
+  "DELIVERED", "CUSTOMER_CANCELLED", "ADMIN_CANCELLED", "REFUND_COMPLETED",
 ]
 
 export default function AdminOrderDetailPage() {
@@ -60,9 +71,12 @@ export default function AdminOrderDetailPage() {
     )
   }
 
-  const isTerminal =
-    order.status &&
-    ["DELIVERED", "CUSTOMER_CANCELLED", "ADMIN_CANCELLED"].includes(order.status)
+  const isTerminal = order.status != null && TERMINAL_STATUSES.includes(order.status)
+  const validNextStatuses = NEXT_STATUSES[order.status ?? ""] ?? []
+  const canCancel =
+    !isTerminal &&
+    order.status !== "REFUND_COMPLETED" &&
+    !["CUSTOMER_CANCELLED", "ADMIN_CANCELLED"].includes(order.status ?? "")
 
   const handleUpdateStatus = () => {
     if (!newStatus) return
@@ -134,42 +148,56 @@ export default function AdminOrderDetailPage() {
       </div>
 
       {/* Status update */}
-      {!isTerminal && (
+      {(validNextStatuses.length > 0 || canCancel) && (
         <div className="bg-white rounded-xl border p-5 space-y-3">
           <h2 className="font-semibold text-slate-800">Update Status</h2>
-          <select
-            value={newStatus}
-            onChange={(e) => setNewStatus(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-          >
-            <option value="">Select new status…</option>
-            {ALL_STATUSES.filter((s) => s !== order.status).map((s) => (
-              <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
-            ))}
-          </select>
-          <textarea
-            value={adminNote}
-            onChange={(e) => setAdminNote(e.target.value)}
-            placeholder="Admin note (optional)"
-            rows={2}
-            className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-          />
-          <div className="flex gap-2">
-            <button
-              onClick={handleUpdateStatus}
-              disabled={!newStatus || updateStatus.isPending}
-              className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {updateStatus.isPending ? "Updating…" : "Update Status"}
-            </button>
-            <button
-              onClick={() => { if (order.id != null) cancelOrder.mutate({ id: order.id }) }}
-              disabled={cancelOrder.isPending}
-              className="px-4 py-2 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 disabled:opacity-50 transition-colors"
-            >
-              {cancelOrder.isPending ? "Cancelling…" : "Cancel Order"}
-            </button>
-          </div>
+
+          {validNextStatuses.length > 0 && (
+            <>
+              <div className="flex gap-2 flex-wrap">
+                {validNextStatuses.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setNewStatus(s)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                      newStatus === s
+                        ? "bg-green-600 text-white border-green-600"
+                        : "bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    → {s.replace(/_/g, " ")}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={adminNote}
+                onChange={(e) => setAdminNote(e.target.value)}
+                placeholder="Admin note (optional)"
+                rows={2}
+                className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+              />
+              <button
+                onClick={handleUpdateStatus}
+                disabled={!newStatus || updateStatus.isPending}
+                className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {updateStatus.isPending ? "Updating…" : "Confirm Update"}
+              </button>
+            </>
+          )}
+
+          {canCancel && (
+            <div className="pt-1 border-t">
+              <button
+                onClick={() => { if (order.id != null) cancelOrder.mutate({ id: order.id }) }}
+                disabled={cancelOrder.isPending}
+                className="px-4 py-2 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 disabled:opacity-50 transition-colors"
+              >
+                {cancelOrder.isPending ? "Cancelling…" : "Cancel Order"}
+              </button>
+            </div>
+          )}
+
           {(updateStatus.isError || cancelOrder.isError) && (
             <p className="text-xs text-red-600">Action failed. Please try again.</p>
           )}

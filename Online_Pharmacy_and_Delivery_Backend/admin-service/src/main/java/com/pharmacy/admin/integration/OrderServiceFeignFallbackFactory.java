@@ -10,6 +10,26 @@ public class OrderServiceFeignFallbackFactory implements FallbackFactory<OrderSe
 
     @Override
     public OrderServiceFeignClient create(Throwable cause) {
-        return (authorizationHeader, page, size) -> List.of();
+        return new OrderServiceFeignClient() {
+            @Override
+            public List<RemoteOrderResponse> getAdminOrders(String authorizationHeader, int page, int size) {
+                return List.of();
+            }
+
+            @Override
+            public RemoteOrderResponse getAdminOrderById(String authorizationHeader, Long id) {
+                return null;
+            }
+
+            @Override
+            public RemoteOrderResponse updateOrderStatus(String authorizationHeader, Long id, String status) {
+                return null;
+            }
+
+            @Override
+            public RemoteOrderResponse cancelOrder(String authorizationHeader, Long id, String reason) {
+                return null;
+            }
+        };
     }
 }

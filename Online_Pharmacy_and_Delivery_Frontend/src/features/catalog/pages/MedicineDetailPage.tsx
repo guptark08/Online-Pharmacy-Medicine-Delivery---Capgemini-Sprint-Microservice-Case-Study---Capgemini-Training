@@ -63,12 +63,18 @@ export default function MedicineDetailPage() {
               src={medicine.imageUrl}
               alt={medicine.name}
               className="w-full h-80 object-contain rounded-xl bg-slate-50 p-6"
+              onError={(e) => {
+                e.currentTarget.style.display = "none"
+                e.currentTarget.nextElementSibling?.removeAttribute("style")
+              }}
             />
-          ) : (
-            <div className="w-full h-80 bg-slate-100 rounded-xl flex items-center justify-center text-7xl">
-              💊
-            </div>
-          )}
+          ) : null}
+          <div
+            className="w-full h-80 bg-slate-100 rounded-xl flex items-center justify-center text-7xl"
+            style={medicine.imageUrl ? { display: "none" } : undefined}
+          >
+            💊
+          </div>
         </div>
 
         {/* Info */}

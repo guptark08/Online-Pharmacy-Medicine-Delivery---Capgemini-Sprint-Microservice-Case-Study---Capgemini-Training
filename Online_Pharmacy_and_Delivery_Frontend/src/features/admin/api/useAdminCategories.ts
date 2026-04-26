@@ -31,3 +31,30 @@ export function useAddCategory() {
     },
   })
 }
+
+export function useUpdateCategory() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, ...body }: { id: number } & CategoryRequestDto): Promise<CategoryResponseDto> => {
+      const response = await api.put(`/api/admin/categories/${id}`, body)
+      return response.data.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.categories() })
+    },
+  })
+}
+
+export function useDeleteCategory() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: number): Promise<void> => {
+      await api.delete(`/api/admin/categories/${id}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.categories() })
+    },
+  })
+}

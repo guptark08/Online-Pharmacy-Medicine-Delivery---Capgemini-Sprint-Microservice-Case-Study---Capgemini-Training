@@ -144,11 +144,16 @@ export default function AdminPrescriptionsPage() {
         </div>
       )}
 
-      {/* List */}
-      {!activeQuery.isLoading && prescriptions.length === 0 && (
-        <div className="text-center py-16 text-slate-400">
+      {/* Empty State */}
+      {(activeQuery.isError || (prescriptions.length === 0 && !activeQuery.isLoading)) && (
+        <div className="text-center py-16 text-slate-400 space-y-2">
           <p className="text-4xl mb-2">📋</p>
           <p>{tab === "pending" ? "No prescriptions pending review." : "No prescriptions found."}</p>
+          {activeQuery.isError && (
+            <p className="text-xs text-red-400">
+              Failed to load prescriptions. Please ensure backend services are running.
+            </p>
+          )}
         </div>
       )}
 

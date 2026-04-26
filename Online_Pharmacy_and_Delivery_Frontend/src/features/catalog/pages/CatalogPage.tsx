@@ -97,18 +97,21 @@ export default function CatalogPage() {
           {/* Search + Sort bar */}
           <div className="flex gap-3">
             <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" aria-hidden="true">🔍</span>
               <input
+                id="medicine-search"
                 type="text"
                 value={localKeyword}
                 onChange={(e) => setLocalKeyword(e.target.value)}
                 placeholder="Search medicines…"
+                aria-label="Search medicines"
                 className="w-full pl-8 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
               />
             </div>
             <select
               value={params.sortBy}
               onChange={(e) => setSortBy(e.target.value)}
+              aria-label="Sort by"
               className="px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               {SORT_OPTIONS.map((o) => (
@@ -167,6 +170,7 @@ function SidebarButton({
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
         active
           ? "bg-green-50 text-green-700 font-medium"

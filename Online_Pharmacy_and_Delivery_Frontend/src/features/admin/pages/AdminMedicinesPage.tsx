@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useAdminMedicines } from "../api/useAdminMedicines"
-import { useAdminCategories } from "../api/useAdminCategories"
+import { useAdminCategories, useAddCategory, useUpdateCategory, useDeleteCategory } from "../api/useAdminCategories"
 import { useAddMedicine } from "../api/useAddMedicine"
 import { useUpdateMedicine } from "../api/useUpdateMedicine"
 import { useDeleteMedicine } from "../api/useDeleteMedicine"
@@ -218,12 +218,18 @@ function StockModal({
 export default function AdminMedicinesPage() {
   const { data: medicines, isLoading } = useAdminMedicines()
   const { data: categories = [] }      = useAdminCategories()
-  const deleteMedicine = useDeleteMedicine()
+  const deleteMedicine  = useDeleteMedicine()
+  const addCategory     = useAddCategory()
+  const updateCategory  = useUpdateCategory()
+  const deleteCategory  = useDeleteCategory()
 
   const [search, setSearch]     = useState("")
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing]   = useState<MedicineResponseDto | null>(null)
   const [updatingStock, setUpdatingStock] = useState<MedicineResponseDto | null>(null)
+  const [showCatPanel, setShowCatPanel]   = useState(false)
+  const [newCatName, setNewCatName]       = useState("")
+  const [editingCat, setEditingCat]       = useState<{ id: number; name: string } | null>(null)
 
   const filtered = (medicines ?? []).filter((m) =>
     !search ||
@@ -243,15 +249,91 @@ export default function AdminMedicinesPage() {
 
   return (
     <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-2xl font-bold text-slate-800">Medicines</h1>
-        <button
-          onClick={() => { setEditing(null); setShowForm(true) }}
-          className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-        >
-          + Add Medicine
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowCatPanel((v) => !v)}
+            className="px-4 py-2 bg-white border text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            Manage Categories
+          </button>
+          <button
+            onClick={() => { setEditing(null); setShowForm(true) }}
+            className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+          >
+            + Add Medicine
+          </button>
+        </div>
       </div>
+
+      {/* Inline Categories panel */}
+      {showCatPanel && (
+        <div className="bg-white rounded-xl border p-5 space-y-3">
+          <h2 className="font-semibold text-slate-800">Categories</h2>
+          <div className="space-y-1">
+            {categories.map((cat) => {
+              const isEditingThis = editingCat != null && editingCat.id === cat.id
+              return (
+              <div key={cat.id} className="flex items-center gap-2 py-1">
+                {isEditingThis ? (
+                  <>
+                    <input
+                      value={editingCat!.name}
+                      onChange={(e) => setEditingCat({ id: editingCat!.id, name: e.target.value })}
+                      className="flex-1 px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                    <button
+                      onClick={() => {
+                        if (cat.id != null && editingCat!.name.trim()) {
+                          updateCategory.mutate({ id: cat.id, name: editingCat!.name.trim() }, { onSuccess: () => setEditingCat(null) })
+                        }
+                      }}
+                      disabled={updateCategory.isPending}
+                      className="px-2.5 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    <button onClick={() => setEditingCat(null)} className="px-2.5 py-1 text-xs text-slate-500 hover:text-slate-800">Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm text-slate-700">{cat.name}</span>
+                    <button onClick={() => setEditingCat({ id: cat.id!, name: cat.name ?? "" })}
+                      className="px-2 py-0.5 text-xs bg-slate-100 rounded hover:bg-slate-200">Edit</button>
+                    <button
+                      onClick={() => { if (cat.id != null) deleteCategory.mutate(cat.id) }}
+                      disabled={deleteCategory.isPending}
+                      className="px-2 py-0.5 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100 disabled:opacity-50">Del</button>
+                  </>
+                )}
+              </div>
+            )})}
+          </div>
+          <div className="flex gap-2 pt-1 border-t">
+            <input
+              value={newCatName}
+              onChange={(e) => setNewCatName(e.target.value)}
+              placeholder="New category name…"
+              className="flex-1 px-3 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newCatName.trim()) {
+                  addCategory.mutate({ name: newCatName.trim() }, { onSuccess: () => setNewCatName("") })
+                }
+              }}
+            />
+            <button
+              onClick={() => {
+                if (newCatName.trim()) addCategory.mutate({ name: newCatName.trim() }, { onSuccess: () => setNewCatName("") })
+              }}
+              disabled={addCategory.isPending || !newCatName.trim()}
+              className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+      )}
 
       <input
         type="text"

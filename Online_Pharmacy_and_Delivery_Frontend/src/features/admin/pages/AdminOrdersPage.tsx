@@ -8,32 +8,51 @@ import type { components } from "@/shared/types/api/admin"
 type OrderResponseDto = components["schemas"]["OrderResponseDto"]
 
 const STATUS_COLOR: Record<string, string> = {
-  CHECKOUT_STARTED:   "bg-slate-100 text-slate-700",
-  PRESCRIPTION_PENDING:"bg-amber-100 text-amber-800",
-  PAYMENT_PENDING:    "bg-yellow-100 text-yellow-800",
-  PAID:               "bg-blue-100 text-blue-800",
-  PACKED:             "bg-purple-100 text-purple-800",
-  OUT_FOR_DELIVERY:   "bg-indigo-100 text-indigo-800",
-  DELIVERED:          "bg-green-100 text-green-800",
-  CUSTOMER_CANCELLED: "bg-red-100 text-red-800",
-  ADMIN_CANCELLED:    "bg-red-100 text-red-800",
-  PAYMENT_FAILED:     "bg-red-100 text-red-800",
+  CHECKOUT_STARTED:      "bg-slate-100 text-slate-700",
+  PRESCRIPTION_PENDING:  "bg-amber-100 text-amber-800",
+  PRESCRIPTION_APPROVED: "bg-teal-100 text-teal-800",
+  PRESCRIPTION_REJECTED: "bg-rose-100 text-rose-800",
+  PAYMENT_PENDING:       "bg-yellow-100 text-yellow-800",
+  PAYMENT_FAILED:        "bg-red-100 text-red-800",
+  PAID:                  "bg-blue-100 text-blue-800",
+  PACKED:                "bg-purple-100 text-purple-800",
+  OUT_FOR_DELIVERY:      "bg-indigo-100 text-indigo-800",
+  DELIVERED:             "bg-green-100 text-green-800",
+  CUSTOMER_CANCELLED:    "bg-red-100 text-red-800",
+  ADMIN_CANCELLED:       "bg-red-100 text-red-800",
+  RETURN_REQUESTED:      "bg-orange-100 text-orange-800",
+  REFUND_INITIATED:      "bg-orange-100 text-orange-800",
+  REFUND_COMPLETED:      "bg-green-100 text-green-800",
 }
 
 const NEXT_STATUSES: Record<string, string[]> = {
-  PAID:             ["PACKED"],
-  PACKED:           ["OUT_FOR_DELIVERY"],
-  OUT_FOR_DELIVERY: ["DELIVERED"],
-  PAYMENT_PENDING:  ["PAID", "PAYMENT_FAILED"],
+  PRESCRIPTION_PENDING:  ["PRESCRIPTION_APPROVED", "PRESCRIPTION_REJECTED"],
+  PRESCRIPTION_APPROVED: ["PAYMENT_PENDING"],
+  PAYMENT_PENDING:       ["PAID", "PAYMENT_FAILED"],
+  PAYMENT_FAILED:        ["PAID"],
+  PAID:                  ["PACKED"],
+  PACKED:                ["OUT_FOR_DELIVERY"],
+  OUT_FOR_DELIVERY:      ["DELIVERED"],
+  DELIVERED:             ["RETURN_REQUESTED"],
+  RETURN_REQUESTED:      ["REFUND_INITIATED"],
+  REFUND_INITIATED:      ["REFUND_COMPLETED"],
 }
 
 const ALL_STATUSES = [
   "ALL",
+  "CHECKOUT_STARTED",
+  "PRESCRIPTION_PENDING",
+  "PRESCRIPTION_APPROVED",
+  "PRESCRIPTION_REJECTED",
   "PAYMENT_PENDING",
+  "PAYMENT_FAILED",
   "PAID",
   "PACKED",
   "OUT_FOR_DELIVERY",
   "DELIVERED",
+  "RETURN_REQUESTED",
+  "REFUND_INITIATED",
+  "REFUND_COMPLETED",
   "CUSTOMER_CANCELLED",
   "ADMIN_CANCELLED",
 ]
@@ -56,6 +75,21 @@ export default function AdminOrdersPage() {
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="h-16 bg-slate-200 rounded-xl animate-pulse" />
         ))}
+      </div>
+    )
+  }
+
+  if (!orders || orders.length === 0) {
+    return (
+      <div className="p-6 space-y-4">
+        <h1 className="text-2xl font-bold text-slate-800">Orders</h1>
+        <div className="bg-white rounded-xl border p-8 text-center">
+          <p className="text-4xl mb-2">📦</p>
+          <p className="text-slate-500">No orders found.</p>
+          <p className="text-xs text-slate-400 mt-2">
+            If orders exist in the system but don't appear here, the backend services may be unavailable.
+          </p>
+        </div>
       </div>
     )
   }

@@ -389,8 +389,8 @@ public class AdminReportService {
     }
 
     private BigDecimal resolveSubtotal(RemoteOrderResponse.RemoteOrderItemResponse item) {
-        if (item.getSubtotal() != null) {
-            return item.getSubtotal();
+        if (item.getTotalPrice() != null) {
+            return item.getTotalPrice();
         }
 
         BigDecimal unitPrice = item.getUnitPrice() == null ? BigDecimal.ZERO : item.getUnitPrice();

@@ -1,108 +1,93 @@
 package com.pharmacy.admin.service;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Locale;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.pharmacy.admin.dto.request.PrescriptionReviewDto;
 import com.pharmacy.admin.dto.response.PrescriptionResponseDto;
-import com.pharmacy.admin.entity.Prescription;
-import com.pharmacy.admin.enums.PrescriptionStatus;
 import com.pharmacy.admin.exception.BadRequestException;
-import com.pharmacy.admin.exception.ResourceNotFoundException;
-import com.pharmacy.admin.repository.PrescriptionRepository;
+import com.pharmacy.admin.integration.CrossServiceAnalyticsClient;
+import com.pharmacy.admin.integration.RemotePrescriptionResponse;
 
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class AdminPrescriptionService {
 
     private static final Logger log = LoggerFactory.getLogger(AdminPrescriptionService.class);
 
-    private final PrescriptionRepository prescriptionRepository;
+    private final CrossServiceAnalyticsClient crossServiceClient;
 
     public List<PrescriptionResponseDto> getPendingPrescriptions() {
-        return prescriptionRepository.findByStatusOrderByUploadedAtAsc(PrescriptionStatus.PENDING)
-                .stream()
-                .map(this::mapToDto)
-                .toList();
+        Optional<List<RemotePrescriptionResponse>> remoteRx = crossServiceClient.fetchPendingPrescriptions();
+        if (remoteRx.isPresent()) {
+            return remoteRx.get().stream()
+                    .map(this::mapRemoteToDto)
+                    .toList();
+        }
+        log.warn("Falling back to local prescriptions due to remote service unavailable");
+        return List.of();
     }
 
     public List<PrescriptionResponseDto> getAllPrescriptions(int page, int size) {
-        return prescriptionRepository.findAllByOrderByUploadedAtDesc(PageRequest.of(page, size))
-                .getContent()
-                .stream()
-                .map(this::mapToDto)
-                .toList();
+        Optional<List<RemotePrescriptionResponse>> remoteRx = crossServiceClient.fetchAllPrescriptions(page, size);
+        if (remoteRx.isPresent()) {
+            return remoteRx.get().stream()
+                    .map(this::mapRemoteToDto)
+                    .toList();
+        }
+        return List.of();
     }
 
     public PrescriptionResponseDto getPrescriptionById(Long id) {
-        return mapToDto(findOrThrow(id));
+        Optional<List<RemotePrescriptionResponse>> allRx = crossServiceClient.fetchAllPrescriptions(0, 1000);
+        if (allRx.isPresent()) {
+            return allRx.get().stream()
+                    .filter(rx -> id.equals(rx.getId()))
+                    .map(this::mapRemoteToDto)
+                    .findFirst()
+                    .orElseThrow(() -> new BadRequestException("Prescription not found: " + id));
+        }
+        throw new BadRequestException("Prescription not found: " + id);
     }
 
     @Transactional
     public PrescriptionResponseDto reviewPrescription(Long id, PrescriptionReviewDto dto, Long adminId) {
-        Prescription prescription = findOrThrow(id);
+        String decision = dto.getDecision();
+        String notes = dto.getRejectionReason();
 
-        if (prescription.getStatus() != PrescriptionStatus.PENDING) {
-            throw new BadRequestException("Prescription is already reviewed. Current status: " + prescription.getStatus());
+        Optional<RemotePrescriptionResponse> updated = crossServiceClient.reviewPrescription(id, decision, notes);
+        if (updated.isPresent()) {
+            log.info("Prescription id={} reviewed with decision={}", id, decision);
+            return mapRemoteToDto(updated.get());
         }
 
-        String decision = normalizeRequired(dto.getDecision(), "Decision is required").toUpperCase(Locale.ROOT);
-
-        if ("APPROVED".equals(decision)) {
-            prescription.setStatus(PrescriptionStatus.APPROVED);
-            prescription.setRejectionReason(null);
-        } else if ("REJECTED".equals(decision)) {
-            String rejectionReason = normalizeRequired(dto.getRejectionReason(), "Rejection reason is required");
-            prescription.setStatus(PrescriptionStatus.REJECTED);
-            prescription.setRejectionReason(rejectionReason);
-        } else {
-            throw new BadRequestException("Decision must be APPROVED or REJECTED");
-        }
-
-        prescription.setReviewedByAdminId(adminId);
-        prescription.setReviewedAt(LocalDateTime.now());
-
-        Prescription saved = prescriptionRepository.save(prescription);
-        log.info("Prescription id={} reviewed by admin={} with decision={}", id, adminId, decision);
-        return mapToDto(saved);
+        log.error("Failed to review prescription via remote service, id={}", id);
+        throw new BadRequestException("Failed to review prescription. Remote service may be unavailable.");
     }
 
-    private Prescription findOrThrow(Long id) {
-        return prescriptionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Prescription", id));
-    }
-
-    private String normalizeRequired(String value, String message) {
-        if (value == null || value.isBlank()) {
-            throw new BadRequestException(message);
-        }
-        return value.trim();
-    }
-
-    public PrescriptionResponseDto mapToDto(Prescription prescription) {
+    private PrescriptionResponseDto mapRemoteToDto(RemotePrescriptionResponse remote) {
         return PrescriptionResponseDto.builder()
-                .id(prescription.getId())
-                .userId(prescription.getUserId())
-                .userEmail(prescription.getUserEmail())
-                .fileUrl(prescription.getFileUrl())
-                .fileType(prescription.getFileType())
-                .status(prescription.getStatus() == null ? null : prescription.getStatus().name())
-                .doctorName(prescription.getDoctorName())
-                .doctorRegNumber(prescription.getDoctorRegNumber())
-                .reviewedByAdminId(prescription.getReviewedByAdminId())
-                .rejectionReason(prescription.getRejectionReason())
-                .orderId(prescription.getOrderId())
-                .uploadedAt(prescription.getUploadedAt() == null ? null : prescription.getUploadedAt().toString())
-                .reviewedAt(prescription.getReviewedAt() == null ? null : prescription.getReviewedAt().toString())
+                .id(remote.getId())
+                .userId(remote.getUserId())
+                .userEmail(remote.getUserEmail())
+                .fileUrl(remote.getFileUrl())
+                .fileType(remote.getFileType())
+                .status(remote.getStatus())
+                .doctorName(remote.getDoctorName())
+                .doctorRegNumber(remote.getDoctorRegNumber())
+                .reviewedByAdminId(remote.getReviewedByAdminId())
+                .rejectionReason(remote.getRejectionReason())
+                .orderId(remote.getOrderId())
+                .uploadedAt(remote.getUploadedAt() == null ? null : remote.getUploadedAt().toString())
+                .reviewedAt(remote.getReviewedAt() == null ? null : remote.getReviewedAt().toString())
                 .build();
     }
 }

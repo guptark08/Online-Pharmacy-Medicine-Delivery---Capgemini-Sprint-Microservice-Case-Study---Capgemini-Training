@@ -6,15 +6,21 @@ type OrderResponse = components["schemas"]["OrderResponse"]
 type OrderStatus   = NonNullable<OrderResponse["status"]>
 
 const STATUS_META: Partial<Record<OrderStatus, { label: string; color: string }>> = {
-  PAID:               { label: "Paid",             color: "bg-blue-100 text-blue-800" },
-  PAYMENT_PENDING:    { label: "Payment Pending",  color: "bg-yellow-100 text-yellow-800" },
-  PAYMENT_FAILED:     { label: "Payment Failed",   color: "bg-red-100 text-red-800" },
-  PACKED:             { label: "Packed",           color: "bg-purple-100 text-purple-800" },
-  OUT_FOR_DELIVERY:   { label: "Out for Delivery", color: "bg-indigo-100 text-indigo-800" },
-  DELIVERED:          { label: "Delivered",        color: "bg-green-100 text-green-800" },
-  CUSTOMER_CANCELLED: { label: "Cancelled",        color: "bg-red-100 text-red-800" },
-  ADMIN_CANCELLED:    { label: "Cancelled",        color: "bg-red-100 text-red-800" },
-  CHECKOUT_STARTED:   { label: "Processing",       color: "bg-slate-100 text-slate-700" },
+  CHECKOUT_STARTED:      { label: "Processing",         color: "bg-slate-100 text-slate-700"   },
+  PRESCRIPTION_PENDING:  { label: "Awaiting Rx Review", color: "bg-amber-100 text-amber-800"   },
+  PRESCRIPTION_APPROVED: { label: "Rx Approved",        color: "bg-teal-100 text-teal-800"     },
+  PRESCRIPTION_REJECTED: { label: "Rx Rejected",        color: "bg-rose-100 text-rose-800"     },
+  PAYMENT_PENDING:       { label: "Payment Pending",    color: "bg-yellow-100 text-yellow-800" },
+  PAYMENT_FAILED:        { label: "Payment Failed",     color: "bg-red-100 text-red-800"       },
+  PAID:                  { label: "Paid",               color: "bg-blue-100 text-blue-800"     },
+  PACKED:                { label: "Packed",             color: "bg-purple-100 text-purple-800" },
+  OUT_FOR_DELIVERY:      { label: "Out for Delivery",   color: "bg-indigo-100 text-indigo-800" },
+  DELIVERED:             { label: "Delivered",          color: "bg-green-100 text-green-800"   },
+  CUSTOMER_CANCELLED:    { label: "Cancelled",          color: "bg-red-100 text-red-800"       },
+  ADMIN_CANCELLED:       { label: "Cancelled",          color: "bg-red-100 text-red-800"       },
+  RETURN_REQUESTED:      { label: "Return Requested",   color: "bg-orange-100 text-orange-800" },
+  REFUND_INITIATED:      { label: "Refund Initiated",   color: "bg-orange-100 text-orange-800" },
+  REFUND_COMPLETED:      { label: "Refunded",           color: "bg-green-100 text-green-800"   },
 }
 
 export default function OrderListPage() {

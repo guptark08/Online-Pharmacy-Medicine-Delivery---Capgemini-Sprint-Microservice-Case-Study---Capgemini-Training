@@ -1,5 +1,8 @@
+import { useState } from "react"
 import { useParams, Link, useLocation } from "react-router-dom"
 import { useOrder } from "../api/useOrder"
+import { useCancelOrder } from "../api/useCancelOrder"
+import { useReorder } from "../api/useReorder"
 import type { components } from "@/shared/types/api/order"
 
 type OrderStatus = NonNullable<components["schemas"]["OrderResponse"]["status"]>
@@ -22,6 +25,13 @@ export default function OrderDetailPage() {
   const fromCheckout = (location.state as { fromCheckout?: boolean } | null)?.fromCheckout
 
   const { data: order, isLoading } = useOrder(Number(id))
+  const cancelOrder = useCancelOrder()
+  const reorder     = useReorder()
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+
+  const isCancellable = order?.status != null &&
+    !["DELIVERED", "CUSTOMER_CANCELLED", "ADMIN_CANCELLED", "OUT_FOR_DELIVERY", "PACKED"].includes(order.status)
+  const isDelivered = order?.status === "DELIVERED"
 
   if (isLoading) {
     return (
@@ -104,18 +114,56 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
+      {/* Cancel confirmation */}
+      {showCancelConfirm && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
+          <p className="text-sm font-semibold text-red-800">Cancel this order?</p>
+          <p className="text-xs text-red-600">This action cannot be undone.</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                if (order?.id != null) {
+                  cancelOrder.mutate({ id: order.id }, { onSuccess: () => setShowCancelConfirm(false) })
+                }
+              }}
+              disabled={cancelOrder.isPending}
+              className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+            >
+              {cancelOrder.isPending ? "Cancelling…" : "Yes, Cancel"}
+            </button>
+            <button onClick={() => setShowCancelConfirm(false)}
+              className="px-4 py-2 border text-slate-700 text-sm rounded-lg hover:bg-slate-50">
+              Keep Order
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Actions */}
-      <div className="flex gap-3">
-        <Link
-          to="/orders"
-          className="flex-1 text-center py-2.5 border rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
-        >
+      <div className="flex flex-wrap gap-3">
+        <Link to="/orders"
+          className="flex-1 min-w-[120px] text-center py-2.5 border rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">
           All Orders
         </Link>
-        <Link
-          to="/catalog"
-          className="flex-1 text-center py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
-        >
+        {isDelivered && order?.id != null && (
+          <button
+            onClick={() => reorder.mutate(order.id!)}
+            disabled={reorder.isPending}
+            className="flex-1 min-w-[120px] py-2.5 border border-green-600 text-green-700 rounded-lg text-sm font-medium hover:bg-green-50 disabled:opacity-50 transition-colors"
+          >
+            {reorder.isPending ? "Adding to cart…" : "Reorder"}
+          </button>
+        )}
+        {isCancellable && !showCancelConfirm && (
+          <button
+            onClick={() => setShowCancelConfirm(true)}
+            className="flex-1 min-w-[120px] py-2.5 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+          >
+            Cancel Order
+          </button>
+        )}
+        <Link to="/catalog"
+          className="flex-1 min-w-[120px] text-center py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">
           Continue Shopping
         </Link>
       </div>

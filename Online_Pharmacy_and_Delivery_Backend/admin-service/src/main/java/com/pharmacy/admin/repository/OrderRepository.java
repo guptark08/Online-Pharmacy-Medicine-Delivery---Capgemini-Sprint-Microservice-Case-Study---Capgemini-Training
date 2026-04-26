@@ -5,15 +5,42 @@ import com.pharmacy.admin.enums.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
+
+    // ── Event-driven upsert (preserves ID from order-service) ─────
+    @Modifying
+    @Transactional
+    @Query(value = "INSERT IGNORE INTO orders (id, user_id, status, total_amount, discount_amount, tax_amount, delivery_charge, prescription_id, created_at, updated_at) " +
+                   "VALUES (:id, :userId, :status, :totalAmount, 0, 0, 0, :prescriptionId, NOW(), NOW())", nativeQuery = true)
+    int insertOrderFromEvent(@Param("id") Long id, @Param("userId") Long userId,
+                             @Param("status") String status, @Param("totalAmount") double totalAmount,
+                             @Param("prescriptionId") Long prescriptionId);
+
+    // Upsert: creates the row if missing, updates status if it already exists
+    @Modifying
+    @Transactional
+    @Query(value = "INSERT INTO orders (id, user_id, status, total_amount, discount_amount, tax_amount, delivery_charge, created_at, updated_at) " +
+                   "VALUES (:id, :userId, :status, 0, 0, 0, 0, NOW(), NOW()) " +
+                   "ON DUPLICATE KEY UPDATE status = :status, updated_at = NOW()", nativeQuery = true)
+    int upsertStatus(@Param("id") Long id, @Param("userId") Long userId, @Param("status") String status);
+
+    @Modifying
+    @Transactional
+    @Query(value = "INSERT INTO orders (id, user_id, status, total_amount, discount_amount, tax_amount, delivery_charge, payment_method, payment_id, created_at, updated_at) " +
+                   "VALUES (:id, :userId, :status, 0, 0, 0, 0, :method, :paymentId, NOW(), NOW()) " +
+                   "ON DUPLICATE KEY UPDATE status = :status, payment_method = :method, payment_id = :paymentId, updated_at = NOW()", nativeQuery = true)
+    int upsertPayment(@Param("id") Long id, @Param("userId") Long userId, @Param("status") String status,
+                      @Param("method") String method, @Param("paymentId") String paymentId);
 
     // ── Status filters ─────────────────────────────────────────────
     List<Order> findByStatusOrderByCreatedAtDesc(OrderStatus status);

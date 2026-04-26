@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom"
 import RootLayout from "@/shared/components/layouts/RootLayout"
 import RequireAuth from "@/shared/components/RequireAuth"
 import NotFoundPage from "@/shared/components/NotFoundPage"
+import { ErrorBoundary } from "@/shared/components/ErrorBoundary"
 
 import { lazy, Suspense } from "react"
 
@@ -41,7 +42,11 @@ function PageLoader() {
 }
 
 function Lazy({ children }: { children: React.ReactNode }) {
-  return <Suspense fallback={<PageLoader />}>{children}</Suspense>
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<PageLoader />}>{children}</Suspense>
+    </ErrorBoundary>
+  )
 }
 
 export const router = createBrowserRouter([

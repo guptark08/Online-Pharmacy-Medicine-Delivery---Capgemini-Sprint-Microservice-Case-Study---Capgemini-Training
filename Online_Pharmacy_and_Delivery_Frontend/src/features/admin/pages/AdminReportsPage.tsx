@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useSalesReport } from "../api/useSalesReport"
 import { useInventoryReport } from "../api/useInventoryReport"
+import { useExportReport } from "../api/useExportReport"
 
 function today() {
   return new Date().toISOString().split("T")[0]
@@ -20,6 +21,13 @@ export default function AdminReportsPage() {
 
   const sales     = useSalesReport(query, tab === "sales")
   const inventory = useInventoryReport()
+  const exportReport = useExportReport()
+
+  const applyPreset = (start: string, end: string) => {
+    setStartDate(start)
+    setEndDate(end)
+    setQuery({ startDate: start, endDate: end })
+  }
 
   return (
     <div className="p-6 space-y-5">
@@ -43,32 +51,57 @@ export default function AdminReportsPage() {
       {/* ── Sales Report ── */}
       {tab === "sales" && (
         <div className="space-y-5">
-          {/* Date range picker */}
-          <div className="bg-white rounded-xl border p-4 flex flex-wrap items-end gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">From</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
+          {/* Date range picker + presets + export */}
+          <div className="bg-white rounded-xl border p-4 space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: "Today", fn: () => applyPreset(today(), today()) },
+                { label: "This Month", fn: () => applyPreset(monthStart(), today()) },
+                { label: "Last 7 Days", fn: () => { const d = new Date(); d.setDate(d.getDate() - 7); applyPreset(d.toISOString().split("T")[0], today()) } },
+                { label: "Last 30 Days", fn: () => { const d = new Date(); d.setDate(d.getDate() - 30); applyPreset(d.toISOString().split("T")[0], today()) } },
+              ].map(({ label, fn }) => (
+                <button key={label} onClick={fn}
+                  className="px-3 py-1 bg-slate-100 text-slate-700 text-xs rounded-lg hover:bg-slate-200 transition-colors">
+                  {label}
+                </button>
+              ))}
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">From</label>
+                <input type="date" value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
+                <input type="date" value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <button onClick={() => setQuery({ startDate, endDate })}
+                className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
+                Generate
+              </button>
+              {sales.data && (
+                <div className="flex gap-2 ml-auto">
+                  <button
+                    onClick={() => exportReport.mutate({ format: "csv", startDate: query.startDate, endDate: query.endDate })}
+                    disabled={exportReport.isPending}
+                    className="px-3 py-2 border text-slate-700 text-sm rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors">
+                    ↓ CSV
+                  </button>
+                  <button
+                    onClick={() => exportReport.mutate({ format: "pdf", startDate: query.startDate, endDate: query.endDate })}
+                    disabled={exportReport.isPending}
+                    className="px-3 py-2 border text-slate-700 text-sm rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors">
+                    ↓ PDF
+                  </button>
+                </div>
+              )}
             </div>
-            <button
-              onClick={() => setQuery({ startDate, endDate })}
-              className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-            >
-              Generate
-            </button>
           </div>
 
           {sales.isLoading && (
