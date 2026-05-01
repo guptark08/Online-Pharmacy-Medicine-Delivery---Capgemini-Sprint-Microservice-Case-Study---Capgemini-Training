@@ -93,6 +93,7 @@ public class AuthService {
                 .expiresInMs(jwtService.getExpirationMs())
                 .refreshToken(refreshToken)
                 .userId(user.getId())
+                .name(user.getName())
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .role(RoleNormalizer.normalizeOrDefault(user.getRole()))

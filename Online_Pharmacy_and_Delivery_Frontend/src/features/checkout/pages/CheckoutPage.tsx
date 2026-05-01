@@ -1,21 +1,21 @@
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useNavigate, Link } from "react-router-dom"
+import { useNavigate, Link, useLocation } from "react-router-dom"
 import { useCart } from "@/features/cart/api/useCart"
 import { useAddresses } from "../api/useAddresses"
-import { useMyPrescriptions } from "@/features/prescriptions/api/useMyPrescriptions"
 import { useCheckout } from "../api/useCheckout"
 import { useInitiatePayment } from "../api/useInitiatePayment"
 import { checkoutFormSchema, type CheckoutFormValues, type CheckoutFormInput } from "../schemas"
 
-type Step = "address" | "slot" | "prescription" | "payment"
+const CART_RX_KEY = "pharmacy_cart_rx_prescription_id"
 
-const STEPS_NO_RX: Step[]   = ["address", "slot", "payment"]
-const STEPS_WITH_RX: Step[] = ["address", "slot", "prescription", "payment"]
+type Step = "address" | "slot" | "payment"
+
+const STEPS: Step[] = ["address", "slot", "payment"]
 
 const STEP_LABELS: Record<Step, string> = {
-  address: "Address", slot: "Delivery", prescription: "Rx", payment: "Payment",
+  address: "Address", slot: "Delivery", payment: "Payment",
 }
 
 const DELIVERY_SLOTS = [
@@ -35,18 +35,25 @@ const INPUT_CLS =
   "w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
 
 export default function CheckoutPage() {
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+  const location  = useLocation()
 
-  const { data: cart }          = useCart()
-  const { data: addresses }     = useAddresses()
-  const { data: prescriptions } = useMyPrescriptions()
-  const checkout                = useCheckout()
-  const initiatePayment         = useInitiatePayment()
+  // Prescription ID comes from cart page (passed via navigation state) or localStorage
+  const prescriptionId: number | null =
+    (location.state as { prescriptionId?: number } | null)?.prescriptionId ??
+    (() => {
+      const raw = localStorage.getItem(CART_RX_KEY)
+      const parsed = raw ? parseInt(raw, 10) : NaN
+      return isNaN(parsed) ? null : parsed
+    })()
 
-  const steps = cart?.hasRxItems ? STEPS_WITH_RX : STEPS_NO_RX
+  const { data: cart }      = useCart()
+  const { data: addresses } = useAddresses()
+  const checkout            = useCheckout()
+  const initiatePayment     = useInitiatePayment()
+
   const [stepIdx, setStepIdx] = useState(0)
-  const currentStep = steps[stepIdx]
-  const [rxError, setRxError] = useState("")
+  const currentStep = STEPS[stepIdx]
 
   const { register, watch, setValue, trigger, handleSubmit, formState: { errors } } =
     useForm<CheckoutFormInput, any, CheckoutFormValues>({
@@ -57,21 +64,13 @@ export default function CheckoutPage() {
   const addressMode    = watch("addressMode")
   const selectedAddrId = watch("addressId")
   const selectedSlot   = watch("deliverySlot")
-  const selectedRxId   = watch("prescriptionId")
   const selectedMethod = watch("paymentMethod")
 
   const advance = async () => {
-    if (currentStep === "prescription" && cart?.hasRxItems && !selectedRxId && approvedPrescriptions.length > 0) {
-      setRxError("Please select an approved prescription to continue")
-      return
-    }
-    setRxError("")
-
     const fieldMap: Record<Step, (keyof CheckoutFormValues)[]> = {
-      address:      addressMode === "existing" ? ["addressId"] : ["newAddress"],
-      slot:         ["deliverySlot"],
-      prescription: [],
-      payment:      ["paymentMethod"],
+      address: addressMode === "existing" ? ["addressId"] : ["newAddress"],
+      slot:    ["deliverySlot"],
+      payment: ["paymentMethod"],
     }
     const valid = await trigger(fieldMap[currentStep])
     if (valid) setStepIdx((i) => i + 1)
@@ -84,48 +83,80 @@ export default function CheckoutPage() {
         ...(values.addressMode === "existing"
           ? { addressId: values.addressId }
           : { newAddress: values.newAddress }),
-        ...(values.prescriptionId ? { prescriptionId: values.prescriptionId } : {}),
+        ...(prescriptionId != null ? { prescriptionId } : {}),
       }
       const order = await checkout.mutateAsync(checkoutPayload)
       if (!order.id) throw new Error("No order ID returned from server")
       await initiatePayment.mutateAsync({ orderId: order.id, method: values.paymentMethod })
+      // Clear the cart prescription after successful order
+      localStorage.removeItem(CART_RX_KEY)
       navigate(`/orders/${order.id}`, { state: { fromCheckout: true } })
     } catch (_err) {
       // Errors surfaced via checkout.isError / initiatePayment.isError below
     }
   }
 
-  const isSubmitting           = checkout.isPending || initiatePayment.isPending
-  const hasError               = !!(checkout.error || initiatePayment.error)
-  const approvedPrescriptions  = prescriptions?.filter((p) => p.status === "APPROVED") ?? []
+  const isSubmitting = checkout.isPending || initiatePayment.isPending
+  const hasError     = !!(checkout.error || initiatePayment.error)
 
   return (
-    <div className="max-w-xl mx-auto px-4 sm:px-6 py-8">
+    <div className="min-h-screen bg-slate-50">
+
+      {/* Page header */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5">
+          <div className="flex items-center gap-3">
+            <Link to="/cart" className="text-slate-400 hover:text-slate-600 transition-colors">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+              </svg>
+            </Link>
+            <div>
+              <h1 className="text-xl font-extrabold text-slate-800">Checkout</h1>
+              <p className="text-xs text-slate-500 mt-0.5">Complete your order in a few steps</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    <div className="max-w-xl mx-auto px-4 sm:px-6 py-6">
 
       {/* Step progress */}
-      <nav className="flex items-center gap-1 mb-8 flex-wrap">
-        {steps.map((step, idx) => (
-          <div key={step} className="flex items-center gap-1">
-            <div
-              className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold transition-colors ${
-                idx < stepIdx
-                  ? "bg-green-600 text-white"
-                  : idx === stepIdx
-                  ? "border-2 border-green-600 text-green-700"
-                  : "border border-slate-200 text-slate-400"
-              }`}
-            >
-              {idx < stepIdx ? "✓" : idx + 1}
+      <nav className="flex items-center gap-1 mb-8">
+        {STEPS.map((step, idx) => (
+          <div key={step} className="flex items-center gap-1 flex-1">
+            <div className="flex items-center gap-2 flex-1">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-extrabold transition-colors shrink-0 ${
+                  idx < stepIdx
+                    ? "bg-green-600 text-white"
+                    : idx === stepIdx
+                    ? "bg-green-50 border-2 border-green-600 text-green-700"
+                    : "bg-white border-2 border-slate-200 text-slate-400"
+                }`}
+              >
+                {idx < stepIdx
+                  ? <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                  : idx + 1}
+              </div>
+              <span className={`text-xs font-semibold hidden sm:inline ${idx === stepIdx ? "text-green-700" : idx < stepIdx ? "text-slate-600" : "text-slate-400"}`}>
+                {STEP_LABELS[step]}
+              </span>
             </div>
-            <span className={`text-xs font-medium hidden sm:inline mr-1 ${idx === stepIdx ? "text-green-700" : "text-slate-400"}`}>
-              {STEP_LABELS[step]}
-            </span>
-            {idx < steps.length - 1 && (
-              <div className={`h-px w-4 ${idx < stepIdx ? "bg-green-400" : "bg-slate-200"}`} />
+            {idx < STEPS.length - 1 && (
+              <div className={`h-0.5 flex-1 mx-1 rounded-full ${idx < stepIdx ? "bg-green-400" : "bg-slate-200"}`} />
             )}
           </div>
         ))}
       </nav>
+
+      {/* Prescription banner (informational — already approved by this point) */}
+      {cart?.hasRxItems && prescriptionId && (
+        <div className="mb-6 bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2 text-xs text-green-700">
+          <span>✅</span>
+          <span>Approved prescription linked to this order (Rx #{prescriptionId})</span>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
@@ -209,34 +240,6 @@ export default function CheckoutPage() {
           </div>
         )}
 
-        {/* ── Prescription ─────────────────────────────────────────────────── */}
-        {currentStep === "prescription" && (
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold text-slate-800">Link Prescription</h2>
-            <p className="text-sm text-slate-500">Your cart has Rx items. Attach an approved prescription.</p>
-            {approvedPrescriptions.length === 0 ? (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700 space-y-1">
-                <p className="font-semibold">No approved prescriptions.</p>
-                <p>Upload one and wait for pharmacist approval before checking out Rx items.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {approvedPrescriptions.map((rx) => (
-                  <div key={rx.id} onClick={() => { setValue("prescriptionId", rx.id); setRxError("") }}
-                    className={`cursor-pointer rounded-xl border p-3 transition-colors ${selectedRxId === rx.id ? "border-green-500 bg-green-50" : "hover:bg-slate-50"}`}
-                  >
-                    <p className="text-sm font-medium">{rx.fileName ?? `Prescription #${rx.id}`}</p>
-                    <p className="text-xs text-slate-500">
-                      Approved{rx.uploadedAt ? ` · ${new Date(rx.uploadedAt).toLocaleDateString()}` : ""}
-                    </p>
-                  </div>
-                ))}
-                {rxError && <p className="text-xs text-red-600">{rxError}</p>}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* ── Payment ──────────────────────────────────────────────────────── */}
         {currentStep === "payment" && (
           <div className="space-y-4">
@@ -273,32 +276,32 @@ export default function CheckoutPage() {
         <div className="flex justify-between pt-2">
           {stepIdx > 0 ? (
             <button type="button" onClick={() => setStepIdx((i) => i - 1)}
-              className="px-5 py-2.5 border rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+              className="px-5 py-2.5 border rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
             >
               ← Back
             </button>
           ) : (
-            <Link to="/cart" className="px-5 py-2.5 border rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">
+            <Link to="/cart" className="px-5 py-2.5 border rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
               ← Cart
             </Link>
           )}
 
           {currentStep === "payment" ? (
             <button type="submit" disabled={isSubmitting}
-              className="px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-6 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
               {isSubmitting ? "Processing…" : "Place Order"}
             </button>
           ) : (
             <button type="button" onClick={advance}
-              disabled={currentStep === "prescription" && approvedPrescriptions.length === 0}
-              className="px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-6 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-sm"
             >
               Continue →
             </button>
           )}
         </div>
       </form>
+    </div>
     </div>
   )
 }

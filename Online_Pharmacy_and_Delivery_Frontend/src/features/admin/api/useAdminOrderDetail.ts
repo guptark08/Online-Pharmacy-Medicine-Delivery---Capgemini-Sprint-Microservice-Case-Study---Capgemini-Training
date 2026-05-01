@@ -13,5 +13,7 @@ export function useAdminOrderDetail(id: number) {
       return response.data.data
     },
     enabled: id > 0,
+    staleTime: 0,
+    refetchInterval: 15_000,
   })
 }

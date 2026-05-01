@@ -97,7 +97,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse cancelOrder(Long userId, Long orderId, String reason) {
+    public OrderResponse cancelOrder(Long userId, Long orderId, String reason, String bearerToken) {
         Order order = orderRepository.findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
 
@@ -115,11 +115,15 @@ public class OrderService {
         Order savedOrder = orderRepository.save(order);
         publishOrderStatusChangedEvent(savedOrder, previousStatus, "CUSTOMER", savedOrder.getCancellationReason());
 
+        if (savedOrder.getPrescriptionId() != null) {
+            catalogClient.cancelPrescription(savedOrder.getPrescriptionId(), bearerToken);
+        }
+
         return toResponse(savedOrder);
     }
 
     @Transactional
-    public OrderResponse updateStatus(Long orderId, OrderStatus newStatus) {
+    public OrderResponse updateStatus(Long orderId, OrderStatus newStatus, String bearerToken) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
 
@@ -141,7 +145,42 @@ public class OrderService {
             publishOrderStatusChangedEvent(savedOrder, currentStatus, "ADMIN", savedOrder.getCancellationReason());
         }
 
+        if (newStatus == OrderStatus.ADMIN_CANCELLED && savedOrder.getPrescriptionId() != null) {
+            catalogClient.cancelPrescription(savedOrder.getPrescriptionId(), bearerToken);
+        }
+
         return toResponse(savedOrder);
+    }
+
+    @Transactional
+    public void handlePrescriptionReviewed(Long prescriptionId, String newPrescriptionStatus) {
+        if (prescriptionId == null || newPrescriptionStatus == null) {
+            return;
+        }
+
+        Order order = orderRepository.findByPrescriptionId(prescriptionId).orElse(null);
+        if (order == null) {
+            return;
+        }
+
+        if (order.getStatus() != OrderStatus.PRESCRIPTION_PENDING) {
+            return;
+        }
+
+        OrderStatus targetStatus = switch (newPrescriptionStatus.trim().toUpperCase()) {
+            case "APPROVED" -> OrderStatus.PRESCRIPTION_APPROVED;
+            case "REJECTED" -> OrderStatus.PRESCRIPTION_REJECTED;
+            default -> null;
+        };
+
+        if (targetStatus == null) {
+            return;
+        }
+
+        OrderStatus previous = order.getStatus();
+        order.setStatus(targetStatus);
+        Order saved = orderRepository.save(order);
+        publishOrderStatusChangedEvent(saved, previous, "ADMIN", null);
     }
 
     private boolean isTransitionAllowed(OrderStatus current, OrderStatus next) {
@@ -223,6 +262,7 @@ public class OrderService {
         response.setTotalAmount(order.getTotalAmount());
         response.setFinalAmount(order.getFinalAmount());
         response.setCreatedAt(order.getCreatedAt());
+        response.setPrescriptionId(order.getPrescriptionId());
 
         if (order.getPayment() != null) {
             response.setPaymentMethod(order.getPayment().getMethod());

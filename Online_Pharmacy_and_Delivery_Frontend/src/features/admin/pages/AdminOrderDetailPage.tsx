@@ -2,7 +2,6 @@ import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
 import { useAdminOrderDetail } from "../api/useAdminOrderDetail"
 import { useUpdateOrderStatus } from "../api/useUpdateOrderStatus"
-import { useCancelAdminOrder } from "../api/useCancelAdminOrder"
 
 const STATUS_COLOR: Record<string, string> = {
   CHECKOUT_STARTED:      "bg-slate-100 text-slate-700",
@@ -22,22 +21,26 @@ const STATUS_COLOR: Record<string, string> = {
   REFUND_COMPLETED:      "bg-green-100 text-green-800",
 }
 
-// Only valid next-state transitions (mirrors backend validateTransition)
-const NEXT_STATUSES: Record<string, string[]> = {
-  PRESCRIPTION_PENDING:  ["PRESCRIPTION_APPROVED", "PRESCRIPTION_REJECTED"],
-  PRESCRIPTION_APPROVED: ["PAYMENT_PENDING"],
-  PAYMENT_PENDING:       ["PAID", "PAYMENT_FAILED"],
-  PAYMENT_FAILED:        ["PAID"],
-  PAID:                  ["PACKED"],
-  PACKED:                ["OUT_FOR_DELIVERY"],
-  OUT_FOR_DELIVERY:      ["DELIVERED"],
-  DELIVERED:             ["RETURN_REQUESTED"],
-  RETURN_REQUESTED:      ["REFUND_INITIATED"],
-  REFUND_INITIATED:      ["REFUND_COMPLETED"],
-}
+// All statuses admin can manually set — excludes CHECKOUT_STARTED (system-only)
+// and CUSTOMER_CANCELLED (customer-only action)
+const ALL_ADMIN_STATUSES = [
+  "PRESCRIPTION_PENDING",
+  "PRESCRIPTION_APPROVED",
+  "PRESCRIPTION_REJECTED",
+  "PAYMENT_PENDING",
+  "PAYMENT_FAILED",
+  "PAID",
+  "PACKED",
+  "OUT_FOR_DELIVERY",
+  "DELIVERED",
+  "RETURN_REQUESTED",
+  "REFUND_INITIATED",
+  "REFUND_COMPLETED",
+  "ADMIN_CANCELLED",
+]
 
 const TERMINAL_STATUSES = [
-  "DELIVERED", "CUSTOMER_CANCELLED", "ADMIN_CANCELLED", "REFUND_COMPLETED",
+  "CUSTOMER_CANCELLED", "ADMIN_CANCELLED", "REFUND_COMPLETED",
 ]
 
 export default function AdminOrderDetailPage() {
@@ -46,10 +49,8 @@ export default function AdminOrderDetailPage() {
 
   const { data: order, isLoading } = useAdminOrderDetail(orderId)
   const updateStatus = useUpdateOrderStatus()
-  const cancelOrder  = useCancelAdminOrder()
 
   const [newStatus, setNewStatus] = useState("")
-  const [adminNote, setAdminNote] = useState("")
 
   if (isLoading) {
     return (
@@ -72,17 +73,14 @@ export default function AdminOrderDetailPage() {
   }
 
   const isTerminal = order.status != null && TERMINAL_STATUSES.includes(order.status)
-  const validNextStatuses = NEXT_STATUSES[order.status ?? ""] ?? []
-  const canCancel =
-    !isTerminal &&
-    order.status !== "REFUND_COMPLETED" &&
-    !["CUSTOMER_CANCELLED", "ADMIN_CANCELLED"].includes(order.status ?? "")
+  // All statuses admin can switch to — any status except the current one
+  const selectableStatuses = ALL_ADMIN_STATUSES.filter((s) => s !== order.status)
 
   const handleUpdateStatus = () => {
     if (!newStatus) return
     updateStatus.mutate(
-      { id: orderId, status: newStatus, adminNote },
-      { onSuccess: () => { setNewStatus(""); setAdminNote("") } }
+      { id: orderId, status: newStatus },
+      { onSuccess: () => setNewStatus("") }
     )
   }
 
@@ -148,58 +146,41 @@ export default function AdminOrderDetailPage() {
       </div>
 
       {/* Status update */}
-      {(validNextStatuses.length > 0 || canCancel) && (
+      {!isTerminal && (
         <div className="bg-white rounded-xl border p-5 space-y-3">
-          <h2 className="font-semibold text-slate-800">Update Status</h2>
+          <div>
+            <h2 className="font-semibold text-slate-800">Update Status</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Current: <span className="font-semibold text-slate-700">{order.status?.replace(/_/g, " ")}</span>
+            </p>
+          </div>
 
-          {validNextStatuses.length > 0 && (
-            <>
-              <div className="flex gap-2 flex-wrap">
-                {validNextStatuses.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setNewStatus(s)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                      newStatus === s
-                        ? "bg-green-600 text-white border-green-600"
-                        : "bg-white text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    → {s.replace(/_/g, " ")}
-                  </button>
-                ))}
-              </div>
-              <textarea
-                value={adminNote}
-                onChange={(e) => setAdminNote(e.target.value)}
-                placeholder="Admin note (optional)"
-                rows={2}
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-              />
-              <button
-                onClick={handleUpdateStatus}
-                disabled={!newStatus || updateStatus.isPending}
-                className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {updateStatus.isPending ? "Updating…" : "Confirm Update"}
-              </button>
-            </>
-          )}
+          <select
+            value={newStatus}
+            onChange={(e) => setNewStatus(e.target.value)}
+            className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-green-500 bg-white transition-colors"
+          >
+            <option value="">— Select new status —</option>
+            {selectableStatuses.map((s) => (
+              <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+            ))}
+          </select>
 
-          {canCancel && (
-            <div className="pt-1 border-t">
-              <button
-                onClick={() => { if (order.id != null) cancelOrder.mutate({ id: order.id }) }}
-                disabled={cancelOrder.isPending}
-                className="px-4 py-2 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 disabled:opacity-50 transition-colors"
-              >
-                {cancelOrder.isPending ? "Cancelling…" : "Cancel Order"}
-              </button>
-            </div>
-          )}
+          <button
+            onClick={handleUpdateStatus}
+            disabled={!newStatus || updateStatus.isPending}
+            className="px-5 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {updateStatus.isPending ? "Updating…" : "Confirm Update"}
+          </button>
 
-          {(updateStatus.isError || cancelOrder.isError) && (
-            <p className="text-xs text-red-600">Action failed. Please try again.</p>
+          {updateStatus.isError && (
+            <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+              Action failed. Please try again.
+            </p>
           )}
         </div>
       )}

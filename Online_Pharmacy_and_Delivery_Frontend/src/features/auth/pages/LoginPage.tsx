@@ -30,7 +30,7 @@ export default function LoginPage() {
         step.phase === "password" ? (
           <>
             Don't have an account?{" "}
-            <Link to="/signup" className="font-medium text-blue-600 hover:underline">
+            <Link to="/signup" className="font-bold text-green-600 hover:text-green-700 transition-colors">
               Sign up
             </Link>
           </>

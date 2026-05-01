@@ -32,6 +32,11 @@ public interface CatalogFeignClient {
             @PathVariable("orderId") Long orderId,
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader);
 
+    @PutMapping("/api/catalog/prescriptions/{id}/cancel")
+    Map<String, Object> cancelPrescription(
+            @PathVariable("id") Long prescriptionId,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader);
+
     @PostMapping("/api/catalog/inventory/reserve")
     Map<String, Object> reserveInventory(
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,

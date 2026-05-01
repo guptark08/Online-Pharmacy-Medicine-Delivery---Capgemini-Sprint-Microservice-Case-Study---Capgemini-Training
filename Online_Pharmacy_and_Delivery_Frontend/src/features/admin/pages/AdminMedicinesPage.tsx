@@ -1,10 +1,11 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useAdminMedicines } from "../api/useAdminMedicines"
 import { useAdminCategories, useAddCategory, useUpdateCategory, useDeleteCategory } from "../api/useAdminCategories"
 import { useAddMedicine } from "../api/useAddMedicine"
 import { useUpdateMedicine } from "../api/useUpdateMedicine"
 import { useDeleteMedicine } from "../api/useDeleteMedicine"
 import { useUpdateStock } from "../api/useUpdateStock"
+import { useUploadMedicineImage } from "../api/useUploadMedicineImage"
 import type { components } from "@/shared/types/api/admin"
 
 type MedicineResponseDto = components["schemas"]["MedicineResponseDto"]
@@ -59,12 +60,26 @@ function MedicineFormModal({
         }
       : EMPTY_FORM
   )
+  const [imageMode, setImageMode] = useState<"url" | "file">("url")
+  const imageFileRef = useRef<HTMLInputElement>(null)
 
   const addMedicine    = useAddMedicine()
   const updateMedicine = useUpdateMedicine()
+  const uploadImage    = useUploadMedicineImage()
 
   const isPending = addMedicine.isPending || updateMedicine.isPending
   const isError   = addMedicine.isError   || updateMedicine.isError
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !initial?.id) return
+    uploadImage.mutate({ id: initial.id, file }, {
+      onSuccess: (updated) => {
+        if (updated.imageUrl) set("imageUrl", updated.imageUrl)
+      },
+    })
+    e.target.value = ""
+  }
 
   const handleSubmit = () => {
     const payload = form as MedicineRequestDto
@@ -135,9 +150,74 @@ function MedicineFormModal({
             <label className="block text-xs font-medium text-slate-600 mb-1">Expiry Date *</label>
             <input type="date" value={form.expiryDate ?? ""} onChange={(e) => set("expiryDate", e.target.value)} className={INPUT_CLS} />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Image URL</label>
-            <input value={form.imageUrl ?? ""} onChange={(e) => set("imageUrl", e.target.value)} className={INPUT_CLS} />
+          <div className="sm:col-span-2">
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-slate-600">Medicine Image</label>
+              <div className="flex text-[10px] border rounded overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setImageMode("url")}
+                  className={`px-2 py-0.5 transition-colors ${imageMode === "url" ? "bg-green-600 text-white" : "text-slate-500 hover:bg-slate-50"}`}
+                >
+                  Paste URL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImageMode("file")}
+                  className={`px-2 py-0.5 transition-colors ${imageMode === "file" ? "bg-green-600 text-white" : "text-slate-500 hover:bg-slate-50"}`}
+                >
+                  Upload File
+                </button>
+              </div>
+            </div>
+            {imageMode === "url" ? (
+              <input
+                value={form.imageUrl ?? ""}
+                onChange={(e) => set("imageUrl", e.target.value)}
+                placeholder="https://example.com/image.jpg"
+                className={INPUT_CLS}
+              />
+            ) : (
+              <div className="space-y-2">
+                {!initial?.id ? (
+                  <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                    Save the medicine first, then upload an image in edit mode.
+                  </p>
+                ) : (
+                  <>
+                    <input
+                      ref={imageFileRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleImageFileChange}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => imageFileRef.current?.click()}
+                      disabled={uploadImage.isPending}
+                      className="w-full py-2 border-2 border-dashed border-slate-300 rounded-lg text-xs text-slate-500 hover:border-green-400 hover:text-green-600 disabled:opacity-50 transition-colors"
+                    >
+                      {uploadImage.isPending ? "Uploading…" : "Click to choose image (JPG, PNG, WEBP — max 5MB)"}
+                    </button>
+                    {uploadImage.isError && (
+                      <p className="text-xs text-red-600">Upload failed. Please try a valid image file.</p>
+                    )}
+                    {uploadImage.isSuccess && (
+                      <p className="text-xs text-green-600">Image uploaded successfully.</p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+            {form.imageUrl && (
+              <img
+                src={form.imageUrl}
+                alt="Preview"
+                className="mt-2 h-16 w-16 object-contain rounded-lg border bg-slate-50"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
+              />
+            )}
           </div>
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-slate-600 mb-1">Description</label>

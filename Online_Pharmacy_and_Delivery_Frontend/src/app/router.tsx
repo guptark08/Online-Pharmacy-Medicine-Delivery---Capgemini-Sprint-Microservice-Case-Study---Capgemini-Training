@@ -45,7 +45,9 @@ function PageLoader() {
 function Lazy({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
-      <Suspense fallback={<PageLoader />}>{children}</Suspense>
+      <Suspense fallback={<PageLoader />}>
+        {children}
+      </Suspense>
     </ErrorBoundary>
   )
 }
@@ -54,7 +56,7 @@ export const router = createBrowserRouter([
   {
     path: "/",
     element: <RootLayout />,
-    errorElement: <NotFoundPage />,
+    errorElement: <NotFoundPage />, // This catches errors in the layout and shows a 404 instead of crashing the whole app.
     children: [
       // Home — role-based redirect (admin → /admin/dashboard, customer → landing)
       {
@@ -100,8 +102,7 @@ export const router = createBrowserRouter([
         element: <RequireAuth><Lazy><PrescriptionsPage /></Lazy></RequireAuth>,
       },
 
-      // Wildcard 404
-      { path: "*", element: <NotFoundPage /> },
+      { path: "*", element: <NotFoundPage /> }, // This catches any route that doesn't match above and shows a 404 page instead of a blank screen.
     ],
   },
 

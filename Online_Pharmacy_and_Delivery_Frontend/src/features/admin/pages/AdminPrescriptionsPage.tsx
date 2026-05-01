@@ -73,7 +73,7 @@ function ReviewModal({
         <h2 className="text-lg font-bold text-slate-800">Review Prescription #{prescription.id}</h2>
 
         <div className="text-sm text-slate-600 space-y-1">
-          <p><span className="font-medium">User:</span> {prescription.userEmail}</p>
+          <p><span className="font-medium">User:</span> {prescription.userEmail ?? (prescription.userId ? `Customer #${prescription.userId}` : "Unknown customer")}</p>
           <p><span className="font-medium">Uploaded:</span>{" "}
             {prescription.uploadedAt ? new Date(prescription.uploadedAt).toLocaleDateString() : "—"}
           </p>
@@ -237,7 +237,7 @@ export default function AdminPrescriptionsPage() {
                   </span>
                 )}
               </div>
-              <p className="text-sm text-slate-600">{rx.userEmail}</p>
+              <p className="text-sm text-slate-600">{rx.userEmail ?? (rx.userId ? `Customer #${rx.userId}` : "Unknown customer")}</p>
               {rx.uploadedAt && (
                 <p className="text-xs text-slate-400">
                   Uploaded {new Date(rx.uploadedAt).toLocaleDateString()}

@@ -14,7 +14,7 @@ export function useAdminCategories() {
       const response = await api.get("/api/admin/categories")
       return response.data.data ?? []
     },
-    staleTime: 5 * 60_000,
+    staleTime: 0,
   })
 }
 

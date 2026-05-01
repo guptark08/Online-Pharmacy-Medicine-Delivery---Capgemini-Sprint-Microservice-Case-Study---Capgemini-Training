@@ -12,6 +12,7 @@ export function useAdminMedicines() {
       const response = await api.get("/api/admin/medicines")
       return response.data.data ?? []
     },
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchInterval: 30_000,
   })
 }

@@ -17,4 +17,6 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, Long
     List<Prescription> findByStatusOrderByUploadedAtAsc(Prescription.PrescriptionStatus status);
 
     long countByStatus(Prescription.PrescriptionStatus status);
+
+    List<Prescription> findByCustomerIdAndStatusAndUserNotifiedFalse(Long customerId, Prescription.PrescriptionStatus status);
 }

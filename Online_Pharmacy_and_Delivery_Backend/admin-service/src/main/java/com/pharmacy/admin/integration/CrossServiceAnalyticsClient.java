@@ -17,6 +17,7 @@ public class CrossServiceAnalyticsClient {
 
     private final OrderServiceFeignClient orderServiceFeignClient;
     private final CatalogServiceFeignClient catalogServiceFeignClient;
+    private final AuthServiceFeignClient authServiceFeignClient;
     private final TokenRelay tokenRelay;
 
     public Optional<List<RemoteOrderResponse>> fetchAdminOrders() {
@@ -94,16 +95,49 @@ public class CrossServiceAnalyticsClient {
         }
     }
 
-    public Optional<List<RemotePrescriptionResponse>> fetchPendingPrescriptions() {
+    public Optional<RemoteUserResponse> fetchUserById(Long userId) {
+        if (userId == null) {
+            return Optional.empty();
+        }
         String authHeader = tokenRelay.currentAuthorizationHeader();
         if (authHeader == null) {
             return Optional.empty();
         }
 
         try {
-            return Optional.ofNullable(catalogServiceFeignClient.getPendingPrescriptions(authHeader));
+            RemoteApiResponse<RemoteUserResponse> response = authServiceFeignClient.getUserById(authHeader, userId);
+            if (response == null || response.getData() == null) {
+                return Optional.empty();
+            }
+            return Optional.of(response.getData());
         } catch (RuntimeException ex) {
-            log.warn("Failed to fetch pending prescriptions: {}", ex.getMessage());
+            log.warn("Failed to fetch user {}: {}", userId, ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<List<RemotePrescriptionResponse>> fetchPendingPrescriptions() {
+        String authHeader = tokenRelay.currentAuthorizationHeader();
+        if (authHeader == null) {
+            log.warn("No authorization header found for pending prescriptions request");
+            return Optional.empty();
+        }
+
+        try {
+            log.info("Fetching pending prescriptions from catalog-service");
+            RemoteApiResponse<List<RemotePrescriptionResponse>> response = catalogServiceFeignClient.getPendingPrescriptions(authHeader);
+            if (response == null) {
+                log.warn("Received null response from catalog-service for pending prescriptions");
+                return Optional.empty();
+            }
+            log.info("Received {} pending prescriptions from catalog-service", 
+                     response.getData() != null ? response.getData().size() : "null");
+            if (response.getData() == null) {
+                return Optional.empty();
+            }
+            return Optional.of(response.getData());
+        } catch (RuntimeException ex) {
+            log.error("Failed to fetch pending prescriptions from catalog-service: {}", ex.getMessage(), ex);
             return Optional.empty();
         }
     }
@@ -115,9 +149,31 @@ public class CrossServiceAnalyticsClient {
         }
 
         try {
-            return Optional.ofNullable(catalogServiceFeignClient.getAllPrescriptions(authHeader, page, size));
+            RemoteApiResponse<List<RemotePrescriptionResponse>> response = catalogServiceFeignClient.getAllPrescriptions(authHeader, page, size);
+            if (response == null || response.getData() == null) {
+                return Optional.empty();
+            }
+            return Optional.of(response.getData());
         } catch (RuntimeException ex) {
             log.warn("Failed to fetch all prescriptions: {}", ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<RemotePrescriptionResponse> fetchPrescriptionById(Long prescriptionId) {
+        String authHeader = tokenRelay.currentAuthorizationHeader();
+        if (authHeader == null) {
+            return Optional.empty();
+        }
+
+        try {
+            RemoteApiResponse<RemotePrescriptionResponse> response = catalogServiceFeignClient.getPrescriptionById(authHeader, prescriptionId);
+            if (response == null || response.getData() == null) {
+                return Optional.empty();
+            }
+            return Optional.of(response.getData());
+        } catch (RuntimeException ex) {
+            log.warn("Failed to fetch prescription {}: {}", prescriptionId, ex.getMessage());
             return Optional.empty();
         }
     }
@@ -129,7 +185,11 @@ public class CrossServiceAnalyticsClient {
         }
 
         try {
-            return Optional.ofNullable(catalogServiceFeignClient.reviewPrescription(authHeader, prescriptionId, decision, notes));
+            RemoteApiResponse<RemotePrescriptionResponse> response = catalogServiceFeignClient.reviewPrescription(authHeader, prescriptionId, decision, notes);
+            if (response == null || response.getData() == null) {
+                return Optional.empty();
+            }
+            return Optional.of(response.getData());
         } catch (RuntimeException ex) {
             log.warn("Failed to review prescription {}: {}", prescriptionId, ex.getMessage());
             return Optional.empty();

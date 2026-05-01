@@ -1,11 +1,13 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { useAdminOrders } from "../api/useAdminOrders"
 import { useUpdateOrderStatus } from "../api/useUpdateOrderStatus"
-import { useCancelAdminOrder } from "../api/useCancelAdminOrder"
 import type { components } from "@/shared/types/api/admin"
 
 type OrderResponseDto = components["schemas"]["OrderResponseDto"]
+
+const normalizeStatus = (s: string | null | undefined) =>
+  (s ?? "").trim().toUpperCase()
 
 const STATUS_COLOR: Record<string, string> = {
   CHECKOUT_STARTED:      "bg-slate-100 text-slate-700",
@@ -25,18 +27,24 @@ const STATUS_COLOR: Record<string, string> = {
   REFUND_COMPLETED:      "bg-green-100 text-green-800",
 }
 
-const NEXT_STATUSES: Record<string, string[]> = {
-  PRESCRIPTION_PENDING:  ["PRESCRIPTION_APPROVED", "PRESCRIPTION_REJECTED"],
-  PRESCRIPTION_APPROVED: ["PAYMENT_PENDING"],
-  PAYMENT_PENDING:       ["PAID", "PAYMENT_FAILED"],
-  PAYMENT_FAILED:        ["PAID"],
-  PAID:                  ["PACKED"],
-  PACKED:                ["OUT_FOR_DELIVERY"],
-  OUT_FOR_DELIVERY:      ["DELIVERED"],
-  DELIVERED:             ["RETURN_REQUESTED"],
-  RETURN_REQUESTED:      ["REFUND_INITIATED"],
-  REFUND_INITIATED:      ["REFUND_COMPLETED"],
-}
+// All statuses admin can set — excludes system-only and customer-only entries
+const ALL_ADMIN_STATUSES = [
+  "PRESCRIPTION_PENDING",
+  "PRESCRIPTION_APPROVED",
+  "PRESCRIPTION_REJECTED",
+  "PAYMENT_PENDING",
+  "PAYMENT_FAILED",
+  "PAID",
+  "PACKED",
+  "OUT_FOR_DELIVERY",
+  "DELIVERED",
+  "RETURN_REQUESTED",
+  "REFUND_INITIATED",
+  "REFUND_COMPLETED",
+  "ADMIN_CANCELLED",
+]
+
+const TERMINAL_STATUSES = ["CUSTOMER_CANCELLED", "ADMIN_CANCELLED", "REFUND_COMPLETED"]
 
 const ALL_STATUSES = [
   "ALL",
@@ -58,16 +66,37 @@ const ALL_STATUSES = [
 ]
 
 export default function AdminOrdersPage() {
-  const { data: orders, isLoading } = useAdminOrders()
+  const { data: orders, isLoading, isFetching, dataUpdatedAt, refetch } = useAdminOrders()
   const updateStatus = useUpdateOrderStatus()
-  const cancelOrder  = useCancelAdminOrder()
 
   const [filterStatus, setFilterStatus] = useState("ALL")
+
+  // Bucket orders by normalized status once per data update — both counts
+  // and the filtered list read from the same source of truth.
+  const buckets = useMemo(() => {
+    const byStatus = new Map<string, OrderResponseDto[]>()
+    for (const o of orders ?? []) {
+      const key = normalizeStatus(o.status)
+      const arr = byStatus.get(key) ?? []
+      arr.push(o)
+      byStatus.set(key, arr)
+    }
+    return byStatus
+  }, [orders])
+
+  const countByStatus = (status: string) =>
+    status === "ALL"
+      ? (orders?.length ?? 0)
+      : (buckets.get(normalizeStatus(status))?.length ?? 0)
 
   const filtered =
     filterStatus === "ALL"
       ? (orders ?? [])
-      : (orders ?? []).filter((o) => o.status === filterStatus)
+      : (buckets.get(normalizeStatus(filterStatus)) ?? [])
+
+  const lastUpdated = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString()
+    : null
 
   if (isLoading) {
     return (
@@ -82,7 +111,16 @@ export default function AdminOrdersPage() {
   if (!orders || orders.length === 0) {
     return (
       <div className="p-6 space-y-4">
-        <h1 className="text-2xl font-bold text-slate-800">Orders</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-slate-800">Orders</h1>
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="text-xs text-green-600 hover:text-green-800 disabled:opacity-50"
+          >
+            {isFetching ? "Refreshing…" : "↻ Refresh"}
+          </button>
+        </div>
         <div className="bg-white rounded-xl border p-8 text-center">
           <p className="text-4xl mb-2">📦</p>
           <p className="text-slate-500">No orders found.</p>
@@ -96,23 +134,60 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-bold text-slate-800">Orders</h1>
-
-      {/* Status filter tabs */}
-      <div className="flex gap-1.5 flex-wrap">
-        {ALL_STATUSES.map((s) => (
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold text-slate-800">Orders</h1>
+        <div className="flex items-center gap-3">
+          {lastUpdated && (
+            <span className="text-xs text-slate-400">
+              {isFetching ? (
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block" />
+                  Updating…
+                </span>
+              ) : (
+                `Updated ${lastUpdated}`
+              )}
+            </span>
+          )}
           <button
-            key={s}
-            onClick={() => setFilterStatus(s)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              filterStatus === s
-                ? "bg-green-600 text-white"
-                : "bg-white border text-slate-600 hover:bg-slate-50"
-            }`}
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="text-xs text-green-600 hover:text-green-800 disabled:opacity-50 font-medium"
           >
-            {s === "ALL" ? `All (${orders?.length ?? 0})` : s.replace(/_/g, " ")}
+            ↻ Refresh
           </button>
-        ))}
+        </div>
+      </div>
+
+      {/* Status filter tabs with live counts */}
+      <div className="flex gap-1.5 flex-wrap">
+        {ALL_STATUSES.map((s) => {
+          const count = countByStatus(s)
+          return (
+            <button
+              key={s}
+              onClick={() => setFilterStatus(s)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1 ${
+                filterStatus === s
+                  ? "bg-green-600 text-white"
+                  : "bg-white border text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <span>
+                {s === "ALL" ? "All" : s.replace(/_/g, " ")}
+              </span>
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+                filterStatus === s
+                  ? "bg-white/25 text-white"
+                  : count > 0
+                  ? "bg-slate-100 text-slate-600"
+                  : "text-slate-300"
+              }`}>
+                {count}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Table */}
@@ -131,15 +206,21 @@ export default function AdminOrdersPage() {
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
-                  No orders found.
+                  No orders in {filterStatus === "ALL" ? "any status" : filterStatus.replace(/_/g, " ")}.
+                  {filterStatus !== "ALL" && (
+                    <button
+                      onClick={() => setFilterStatus("ALL")}
+                      className="ml-2 text-green-600 hover:text-green-800 underline"
+                    >
+                      Show all
+                    </button>
+                  )}
                 </td>
               </tr>
             )}
             {filtered.map((order: OrderResponseDto) => {
-              const nextStatuses = NEXT_STATUSES[order.status ?? ""] ?? []
-              const canCancel =
-                order.status &&
-                !["DELIVERED", "CUSTOMER_CANCELLED", "ADMIN_CANCELLED"].includes(order.status)
+              const isTerminal = TERMINAL_STATUSES.includes(order.status ?? "")
+              const selectableStatuses = ALL_ADMIN_STATUSES.filter((s) => s !== order.status)
 
               return (
                 <tr key={order.id} className="hover:bg-slate-50 transition-colors">
@@ -157,8 +238,12 @@ export default function AdminOrdersPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
-                    <p className="text-slate-700">{order.userName ?? "—"}</p>
-                    <p className="text-xs text-slate-400">{order.userEmail}</p>
+                    <p className="text-slate-700">
+                      {order.userName ?? (order.userId != null ? `User #${order.userId}` : "—")}
+                    </p>
+                    {order.userEmail && (
+                      <p className="text-xs text-slate-400">{order.userEmail}</p>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -173,30 +258,38 @@ export default function AdminOrdersPage() {
                     ₹{order.totalAmount?.toFixed(0)}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                      {nextStatuses.map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => {
-                            if (order.id != null) updateStatus.mutate({ id: order.id, status: s })
+                    <div className="flex items-center justify-end gap-2">
+                      {!isTerminal ? (
+                        <select
+                          key={order.status}
+                          defaultValue={order.status ?? ""}
+                          onChange={(e) => {
+                            const s = e.target.value
+                            if (s && s !== order.status && order.id != null) {
+                              updateStatus.mutate({ id: order.id, status: s })
+                            }
                           }}
                           disabled={updateStatus.isPending}
-                          className="px-2.5 py-1 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                          className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-green-500 disabled:opacity-50 cursor-pointer"
                         >
-                          → {s.replace(/_/g, " ")}
-                        </button>
-                      ))}
-                      {canCancel && (
-                        <button
-                          onClick={() => {
-                            if (order.id != null) cancelOrder.mutate({ id: order.id })
-                          }}
-                          disabled={cancelOrder.isPending}
-                          className="px-2.5 py-1 bg-red-100 text-red-700 text-xs rounded-lg hover:bg-red-200 disabled:opacity-50 transition-colors"
-                        >
-                          Cancel
-                        </button>
+                          <option value={order.status ?? ""} disabled>
+                            {(order.status ?? "").replace(/_/g, " ")} (current)
+                          </option>
+                          <optgroup label="── Change to ──">
+                            {selectableStatuses.map((s) => (
+                              <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+                            ))}
+                          </optgroup>
+                        </select>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">Terminal</span>
                       )}
+                      <Link
+                        to={`/admin/orders/${order.id}`}
+                        className="text-xs text-green-600 hover:text-green-800 font-medium whitespace-nowrap"
+                      >
+                        View →
+                      </Link>
                     </div>
                   </td>
                 </tr>

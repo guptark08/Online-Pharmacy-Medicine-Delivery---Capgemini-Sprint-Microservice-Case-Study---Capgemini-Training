@@ -70,6 +70,11 @@ public class CheckoutService {
 
         BigDecimal totalAmount = calculateCartTotal(cartItems);
 
+        if (totalAmount.compareTo(new BigDecimal("200")) < 0) {
+            throw new InvalidOrderStateException(
+                "Minimum order amount is ₹200. Your current total is ₹" + totalAmount.toPlainString() + ".");
+        }
+
         Order order = Order.builder()
                 .userId(userId)
                 .status(initialStatus)
@@ -204,6 +209,7 @@ public class CheckoutService {
         response.setTotalAmount(order.getTotalAmount());
         response.setFinalAmount(order.getFinalAmount());
         response.setCreatedAt(order.getCreatedAt());
+        response.setPrescriptionId(order.getPrescriptionId());
 
         List<OrderResponse.OrderItemResponse> itemResponses = items.stream()
                 .map(item -> {

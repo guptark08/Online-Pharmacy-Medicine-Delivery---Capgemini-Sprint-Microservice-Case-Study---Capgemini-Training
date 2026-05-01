@@ -23,6 +23,7 @@ public class OrderResponse {
     private String paymentMethod;
     private String paymentId;
     private LocalDateTime createdAt;
+    private Long prescriptionId;
     private List<OrderItemResponse> items;
 
     @Data

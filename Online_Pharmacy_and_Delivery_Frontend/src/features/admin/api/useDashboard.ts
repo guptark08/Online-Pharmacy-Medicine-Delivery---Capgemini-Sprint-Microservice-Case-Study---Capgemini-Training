@@ -12,6 +12,7 @@ export function useDashboard() {
       const response = await api.get("/api/admin/dashboard")
       return response.data.data
     },
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchInterval: 20_000,
   })
 }

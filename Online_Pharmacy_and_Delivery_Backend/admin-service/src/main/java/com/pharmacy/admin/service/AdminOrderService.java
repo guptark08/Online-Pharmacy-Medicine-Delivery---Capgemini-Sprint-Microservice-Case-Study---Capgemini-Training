@@ -1,6 +1,8 @@
 package com.pharmacy.admin.service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -16,6 +18,7 @@ import com.pharmacy.admin.exception.BadRequestException;
 import com.pharmacy.admin.integration.CrossServiceAnalyticsClient;
 import com.pharmacy.admin.integration.RemoteOrderResponse;
 import com.pharmacy.admin.integration.RemoteOrderResponse.RemoteOrderItemResponse;
+import com.pharmacy.admin.integration.RemoteUserResponse;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,8 +34,9 @@ public class AdminOrderService {
     public List<OrderResponseDto> getAllOrders(int page, int size) {
         Optional<List<RemoteOrderResponse>> remoteOrders = crossServiceClient.fetchAdminOrders();
         if (remoteOrders.isPresent()) {
+            Map<Long, RemoteUserResponse> userCache = buildUserCache(remoteOrders.get());
             return remoteOrders.get().stream()
-                    .map(this::mapRemoteToDto)
+                    .map(o -> mapRemoteToDto(o, userCache))
                     .toList();
         }
 
@@ -43,9 +47,12 @@ public class AdminOrderService {
     public List<OrderResponseDto> getOrdersByStatus(String status) {
         Optional<List<RemoteOrderResponse>> remoteOrders = crossServiceClient.fetchAdminOrders();
         if (remoteOrders.isPresent()) {
-            return remoteOrders.get().stream()
+            List<RemoteOrderResponse> matched = remoteOrders.get().stream()
                     .filter(o -> status == null || status.equalsIgnoreCase("ALL") || status.equalsIgnoreCase(o.getStatus()))
-                    .map(this::mapRemoteToDto)
+                    .toList();
+            Map<Long, RemoteUserResponse> userCache = buildUserCache(matched);
+            return matched.stream()
+                    .map(o -> mapRemoteToDto(o, userCache))
                     .toList();
         }
         return List.of();
@@ -54,7 +61,8 @@ public class AdminOrderService {
     public OrderResponseDto getOrderById(Long id) {
         Optional<RemoteOrderResponse> remoteOrder = crossServiceClient.fetchAdminOrderById(id);
         if (remoteOrder.isPresent()) {
-            return mapRemoteToDto(remoteOrder.get());
+            Map<Long, RemoteUserResponse> userCache = buildUserCache(List.of(remoteOrder.get()));
+            return mapRemoteToDto(remoteOrder.get(), userCache);
         }
 
         throw new BadRequestException("Order not found: " + id);
@@ -63,9 +71,12 @@ public class AdminOrderService {
     public List<OrderResponseDto> getOrdersByUser(Long userId) {
         Optional<List<RemoteOrderResponse>> remoteOrders = crossServiceClient.fetchAdminOrders();
         if (remoteOrders.isPresent()) {
-            return remoteOrders.get().stream()
+            List<RemoteOrderResponse> matched = remoteOrders.get().stream()
                     .filter(o -> userId.equals(o.getUserId()))
-                    .map(this::mapRemoteToDto)
+                    .toList();
+            Map<Long, RemoteUserResponse> userCache = buildUserCache(matched);
+            return matched.stream()
+                    .map(o -> mapRemoteToDto(o, userCache))
                     .toList();
         }
         return List.of();
@@ -75,12 +86,27 @@ public class AdminOrderService {
         Optional<List<RemoteOrderResponse>> remoteOrders = crossServiceClient.fetchAdminOrders();
         if (remoteOrders.isPresent()) {
             List<String> activeStatuses = List.of("PAID", "PACKED", "OUT_FOR_DELIVERY", "PRESCRIPTION_PENDING", "PRESCRIPTION_APPROVED", "PAYMENT_PENDING");
-            return remoteOrders.get().stream()
+            List<RemoteOrderResponse> matched = remoteOrders.get().stream()
                     .filter(o -> o.getStatus() != null && activeStatuses.contains(o.getStatus().toUpperCase()))
-                    .map(this::mapRemoteToDto)
+                    .toList();
+            Map<Long, RemoteUserResponse> userCache = buildUserCache(matched);
+            return matched.stream()
+                    .map(o -> mapRemoteToDto(o, userCache))
                     .toList();
         }
         return List.of();
+    }
+
+    private Map<Long, RemoteUserResponse> buildUserCache(List<RemoteOrderResponse> orders) {
+        Map<Long, RemoteUserResponse> cache = new HashMap<>();
+        for (RemoteOrderResponse order : orders) {
+            Long userId = order.getUserId();
+            if (userId == null || cache.containsKey(userId)) {
+                continue;
+            }
+            crossServiceClient.fetchUserById(userId).ifPresent(user -> cache.put(userId, user));
+        }
+        return cache;
     }
 
     @Transactional
@@ -88,7 +114,8 @@ public class AdminOrderService {
         Optional<RemoteOrderResponse> updated = crossServiceClient.updateOrderStatus(orderId, dto.getStatus());
         if (updated.isPresent()) {
             log.info("Order id={} status updated to {} via remote service", orderId, dto.getStatus());
-            return mapRemoteToDto(updated.get());
+            Map<Long, RemoteUserResponse> userCache = buildUserCache(List.of(updated.get()));
+            return mapRemoteToDto(updated.get(), userCache);
         }
 
         log.error("Failed to update order status via remote service, orderId={}", orderId);
@@ -100,14 +127,15 @@ public class AdminOrderService {
         Optional<RemoteOrderResponse> updated = crossServiceClient.cancelOrder(orderId, reason);
         if (updated.isPresent()) {
             log.info("Order id={} cancelled via remote service", orderId);
-            return mapRemoteToDto(updated.get());
+            Map<Long, RemoteUserResponse> userCache = buildUserCache(List.of(updated.get()));
+            return mapRemoteToDto(updated.get(), userCache);
         }
 
         log.error("Failed to cancel order via remote service, orderId={}", orderId);
         throw new BadRequestException("Failed to cancel order. Remote service may be unavailable.");
     }
 
-    private OrderResponseDto mapRemoteToDto(RemoteOrderResponse remote) {
+    private OrderResponseDto mapRemoteToDto(RemoteOrderResponse remote, Map<Long, RemoteUserResponse> userCache) {
         List<OrderItemResponseDto> items = null;
         if (remote.getItems() != null) {
             items = remote.getItems().stream()
@@ -115,11 +143,17 @@ public class AdminOrderService {
                     .toList();
         }
 
+        RemoteUserResponse user = remote.getUserId() == null ? null : userCache.get(remote.getUserId());
+        String userEmail = remote.getUserEmail() != null ? remote.getUserEmail()
+                : (user != null ? user.getEmail() : null);
+        String userName = remote.getUserName() != null ? remote.getUserName()
+                : (user != null ? (user.getName() != null ? user.getName() : user.getUsername()) : null);
+
         return OrderResponseDto.builder()
                 .id(remote.getId())
                 .userId(remote.getUserId())
-                .userEmail(remote.getUserEmail())
-                .userName(remote.getUserName())
+                .userEmail(userEmail)
+                .userName(userName)
                 .status(remote.getStatus())
                 .totalAmount(remote.getTotalAmount() != null ? remote.getTotalAmount().doubleValue() : 0.0)
                 .discountAmount(remote.getDiscountAmount() != null ? remote.getDiscountAmount().doubleValue() : 0.0)

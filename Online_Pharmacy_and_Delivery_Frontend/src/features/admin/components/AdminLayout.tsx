@@ -2,19 +2,36 @@ import { useState } from "react"
 import { NavLink, Outlet, Link } from "react-router-dom"
 import { useLogout } from "@/features/auth/api/useLogout"
 import { useAuthStore } from "@/shared/stores/authStore"
+import { useAdminPendingPrescriptions } from "../api/useAdminPrescriptions"
+import { useAdminOrders } from "../api/useAdminOrders"
 
-const NAV_ITEMS = [
-  { to: "/admin/dashboard",      label: "Dashboard",      icon: "📊" },
-  { to: "/admin/orders",         label: "Orders",         icon: "📦" },
-  { to: "/admin/prescriptions",  label: "Prescriptions",  icon: "📋" },
-  { to: "/admin/medicines",      label: "Medicines",      icon: "💊" },
-  { to: "/admin/users",          label: "Users",          icon: "👤" },
-  { to: "/admin/reports",        label: "Reports",        icon: "📈" },
-]
+function useSidebarBadges() {
+  const { data: pendingRx }  = useAdminPendingPrescriptions()
+  const { data: orders }     = useAdminOrders()
+
+  const pendingRxCount = pendingRx?.length ?? 0
+  const needsAttentionCount = (orders ?? []).filter((o) =>
+    o.status === "PRESCRIPTION_PENDING" ||
+    o.status === "PAYMENT_PENDING" ||
+    o.status === "RETURN_REQUESTED"
+  ).length
+
+  return { pendingRxCount, needsAttentionCount }
+}
 
 function Sidebar({ onClose }: { onClose?: () => void }) {
   const user   = useAuthStore((s) => s.user)
   const logout = useLogout()
+  const { pendingRxCount, needsAttentionCount } = useSidebarBadges()
+
+  const NAV_ITEMS = [
+    { to: "/admin/dashboard",     label: "Dashboard",     icon: "📊", badge: 0 },
+    { to: "/admin/orders",        label: "Orders",        icon: "📦", badge: needsAttentionCount },
+    { to: "/admin/prescriptions", label: "Prescriptions", icon: "📋", badge: pendingRxCount },
+    { to: "/admin/medicines",     label: "Medicines",     icon: "💊", badge: 0 },
+    { to: "/admin/users",         label: "Users",         icon: "👤", badge: 0 },
+    { to: "/admin/reports",       label: "Reports",       icon: "📈", badge: 0 },
+  ]
 
   return (
     <aside className="w-56 shrink-0 bg-white border-r flex flex-col shadow-sm h-full">
@@ -29,22 +46,29 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
         )}
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-0.5">
         {NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             onClick={onClose}
             className={({ isActive }) =>
-              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              `flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-green-50 text-green-700"
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`
             }
           >
-            <span aria-hidden="true">{item.icon}</span>
-            {item.label}
+            <span className="flex items-center gap-2.5">
+              <span aria-hidden="true">{item.icon}</span>
+              {item.label}
+            </span>
+            {item.badge > 0 && (
+              <span className="text-[10px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full leading-none min-w-[18px] text-center">
+                {item.badge > 99 ? "99+" : item.badge}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
@@ -70,7 +94,7 @@ export default function AdminLayout() {
   return (
     <div className="flex min-h-screen bg-slate-50">
       {/* Desktop sidebar — always visible on md+ */}
-      <div className="hidden md:flex">
+      <div className="hidden md:flex sticky top-0 h-screen shrink-0">
         <Sidebar />
       </div>
 

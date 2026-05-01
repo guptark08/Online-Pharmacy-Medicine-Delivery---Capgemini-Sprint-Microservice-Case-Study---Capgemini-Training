@@ -5,6 +5,7 @@ export type Role = "CUSTOMER" | "ADMIN"
 
 export interface AuthUser {
   userId: number
+  name: string
   username: string
   email: string
   role: Role

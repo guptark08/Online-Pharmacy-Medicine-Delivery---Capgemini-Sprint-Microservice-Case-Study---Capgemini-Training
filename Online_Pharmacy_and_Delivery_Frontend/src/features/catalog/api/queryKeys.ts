@@ -5,10 +5,10 @@ export const catalogKeys = {
 
   medicines: () => [...catalogKeys.all, "medicines"] as const,
 
-  // Full params object is part of the key — TanStack Query refetches when any
+  // Individual params are part of the key — TanStack Query refetches when any
   // filter/page/sort param changes.
   medicinesList: (params: Record<string, unknown>) =>
-    [...catalogKeys.medicines(), "list", params] as const,
+    [...catalogKeys.medicines(), "list", params.keyword ?? "", params.categoryId ?? "none", params.requiresPrescription ?? "none", params.page ?? 0, params.size ?? 12, params.sortBy ?? "name"] as const,
 
   medicine: (id: number) => [...catalogKeys.medicines(), id] as const,
 

@@ -22,17 +22,22 @@ public interface CatalogServiceFeignClient {
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader);
 
     @GetMapping("/api/catalog/prescriptions/pending")
-    List<RemotePrescriptionResponse> getPendingPrescriptions(
+    RemoteApiResponse<List<RemotePrescriptionResponse>> getPendingPrescriptions(
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader);
 
     @GetMapping("/api/catalog/prescriptions")
-    List<RemotePrescriptionResponse> getAllPrescriptions(
+    RemoteApiResponse<List<RemotePrescriptionResponse>> getAllPrescriptions(
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size);
 
+    @GetMapping("/api/catalog/prescriptions/{id}")
+    RemoteApiResponse<RemotePrescriptionResponse> getPrescriptionById(
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
+            @PathVariable("id") Long id);
+
     @PutMapping("/api/catalog/prescriptions/{id}/review")
-    RemotePrescriptionResponse reviewPrescription(
+    RemoteApiResponse<RemotePrescriptionResponse> reviewPrescription(
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
             @PathVariable("id") Long id,
             @RequestParam("status") String status,

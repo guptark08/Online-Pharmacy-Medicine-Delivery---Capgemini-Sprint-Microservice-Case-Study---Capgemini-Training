@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
@@ -19,7 +20,7 @@ class JwtUtilTest {
 
     private JwtUtil jwtUtil;
 
-    // 256-bit test secret (base64 encoded)
+    // 256-bit test secret, used as raw bytes to match JwtUtil.
     private static final String TEST_SECRET =
             "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970";
 
@@ -33,7 +34,7 @@ class JwtUtilTest {
 
     // ── Build a token for testing ─────────────────────────────────
     private String buildToken(String username, String role, long expiryMs) {
-        byte[] keyBytes = io.jsonwebtoken.io.Decoders.BASE64.decode(TEST_SECRET);
+        byte[] keyBytes = TEST_SECRET.getBytes(StandardCharsets.UTF_8);
         Key key = Keys.hmacShaKeyFor(keyBytes);
 
         Map<String, Object> claims = new HashMap<>();

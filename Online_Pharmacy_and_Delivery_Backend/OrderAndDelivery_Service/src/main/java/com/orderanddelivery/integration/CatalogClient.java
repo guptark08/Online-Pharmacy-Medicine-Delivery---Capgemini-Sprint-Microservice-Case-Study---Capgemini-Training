@@ -14,6 +14,9 @@ import com.orderanddelivery.exception.ExternalServiceException;
 import com.orderanddelivery.exception.InvalidOrderStateException;
 import com.orderanddelivery.exception.ResourceNotFoundException;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Component
 public class CatalogClient {
 
@@ -116,6 +119,16 @@ public class CatalogClient {
             throw ex;
         } catch (RuntimeException ex) {
             throw new ExternalServiceException("Unable to link prescription to order", ex);
+        }
+    }
+
+    public void cancelPrescription(Long prescriptionId, String bearerToken) {
+        if (prescriptionId == null || bearerToken == null || bearerToken.isBlank()) return;
+        try {
+            catalogFeignClient.cancelPrescription(prescriptionId, "Bearer " + bearerToken);
+        } catch (RuntimeException ex) {
+            // Best-effort cleanup — must not roll back an already-committed order cancellation
+            log.warn("Failed to expire prescription {} after order cancellation: {}", prescriptionId, ex.getMessage());
         }
     }
 

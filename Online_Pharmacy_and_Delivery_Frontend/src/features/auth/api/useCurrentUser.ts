@@ -21,6 +21,7 @@ export function useFetchCurrentUser() {
       const data = response.data.data
       return {
         userId: data.id ?? 0,
+        name: data.name ?? "",
         username: data.username ?? "",
         email: data.email ?? "",
         role: normalizeRole(data.role),

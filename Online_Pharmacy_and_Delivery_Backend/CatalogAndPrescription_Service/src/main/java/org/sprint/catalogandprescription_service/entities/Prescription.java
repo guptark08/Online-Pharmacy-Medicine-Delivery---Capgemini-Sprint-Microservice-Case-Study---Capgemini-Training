@@ -67,6 +67,10 @@ public class Prescription {
 	@Column(name = "doctor_reg_number")
 	private String doctorRegNumber;
 
+	@Builder.Default
+	@Column(name = "user_notified", nullable = false)
+	private Boolean userNotified = false;
+
 	@Column(name = "uploaded_at", updatable = false)
 	private LocalDateTime uploadedAt;
 

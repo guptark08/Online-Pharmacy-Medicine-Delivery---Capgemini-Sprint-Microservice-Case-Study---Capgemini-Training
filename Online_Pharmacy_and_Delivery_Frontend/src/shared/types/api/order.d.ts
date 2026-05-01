@@ -245,6 +245,8 @@ export interface components {
             finalAmount?: number;
             paymentMethod?: string;
             paymentId?: string;
+            /** Format: int64 */
+            prescriptionId?: number;
             /** Format: date-time */
             createdAt?: string;
             items?: components["schemas"]["OrderItemResponse"][];

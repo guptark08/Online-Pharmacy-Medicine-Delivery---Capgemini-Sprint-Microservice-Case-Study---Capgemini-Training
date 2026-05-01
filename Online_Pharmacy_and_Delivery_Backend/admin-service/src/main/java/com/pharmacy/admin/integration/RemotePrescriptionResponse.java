@@ -8,7 +8,9 @@ import lombok.Data;
 public class RemotePrescriptionResponse {
     private Long id;
     private Long userId;
+    private Long customerId;
     private String userEmail;
+    private String fileName;
     private String fileUrl;
     private String fileType;
     private String status;
@@ -16,6 +18,7 @@ public class RemotePrescriptionResponse {
     private String doctorRegNumber;
     private Long reviewedByAdminId;
     private String rejectionReason;
+    private String reviewNotes;
     private Long orderId;
     private LocalDateTime uploadedAt;
     private LocalDateTime reviewedAt;

@@ -12,7 +12,8 @@ export function useAdminPrescriptions() {
       const response = await api.get("/api/admin/prescriptions")
       return response.data.data ?? []
     },
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchInterval: 20_000,
   })
 }
 
@@ -23,6 +24,7 @@ export function useAdminPendingPrescriptions() {
       const response = await api.get("/api/admin/prescriptions/pending")
       return response.data.data ?? []
     },
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchInterval: 15_000,
   })
 }

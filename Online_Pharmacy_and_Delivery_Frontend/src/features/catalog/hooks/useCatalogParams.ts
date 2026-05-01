@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useMemo } from "react"
 import { useSearchParams } from "react-router-dom"
 import type { MedicinesParams } from "../api/useMedicines"
 
@@ -35,8 +35,12 @@ export function useCatalogParams() {
     (keyword: string) =>
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev)
+        const prevKeyword = prev.get("keyword") ?? ""
         keyword ? next.set("keyword", keyword) : next.delete("keyword")
-        next.set("page", "1")
+        // Only reset to page 1 when the keyword actually changes.
+        // Without this guard, re-renders where setKeyword fires with the same
+        // value would reset the page — breaking pagination.
+        if (keyword !== prevKeyword) next.set("page", "1")
         return next
       }),
     [setSearchParams]
@@ -87,14 +91,17 @@ export function useCatalogParams() {
 
   // Convert UI params → API params.
   // Key translation: UI uses 1-indexed pages, backend is 0-indexed.
-  const apiParams: MedicinesParams = {
-    keyword:              params.keyword || undefined,
-    categoryId:           params.categoryId,
-    requiresPrescription: params.requiresPrescription,
-    page:                 params.page - 1,  // ← the only place this conversion lives
-    size:                 params.size,
-    sortBy:               params.sortBy,
-  }
+  const apiParams: MedicinesParams = useMemo(
+    () => ({
+      keyword:              params.keyword || undefined,
+      categoryId:           params.categoryId,
+      requiresPrescription: params.requiresPrescription,
+      page:                 params.page - 1,  // ← the only place this conversion lives
+      size:                 params.size,
+      sortBy:               params.sortBy,
+    }),
+    [params.keyword, params.categoryId, params.requiresPrescription, params.page, params.size, params.sortBy]
+  )
 
   return { params, apiParams, setKeyword, setCategoryId, setRequiresPrescription, setPage, setSortBy }
 }

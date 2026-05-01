@@ -1,7 +1,11 @@
 package org.sprint.catalogandprescription_service.controller;
 
+import java.io.IOException;
+
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -13,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.sprint.catalogandprescription_service.dto.ApiResponse;
 import org.sprint.catalogandprescription_service.dto.MedicineDTO;
 import org.sprint.catalogandprescription_service.service.MedicineService;
@@ -76,6 +81,32 @@ public class MedicineController {
 
         MedicineDTO updated = medicineService.updateMedicine(id, dto);
         return ResponseEntity.ok(ApiResponse.success("Medicine updated", updated));
+    }
+
+    @PostMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Upload an image for a medicine (Admin only)")
+    public ResponseEntity<ApiResponse<MedicineDTO>> uploadMedicineImage(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file) throws IOException {
+        MedicineDTO updated = medicineService.uploadMedicineImage(id, file);
+        return ResponseEntity.ok(ApiResponse.success("Medicine image uploaded", updated));
+    }
+
+    @GetMapping("/{id}/image-file")
+    @Operation(summary = "Serve a medicine image file")
+    public ResponseEntity<Resource> getMedicineImageFile(
+            @PathVariable Long id,
+            @RequestParam("file") String fileName) {
+        Resource resource = medicineService.getMedicineImageFile(id, fileName);
+        String contentType = resource.getFilename() != null && resource.getFilename().endsWith(".png")
+                ? "image/png"
+                : resource.getFilename() != null && resource.getFilename().endsWith(".webp")
+                        ? "image/webp"
+                        : "image/jpeg";
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(resource);
     }
 
     @DeleteMapping("/{id}")

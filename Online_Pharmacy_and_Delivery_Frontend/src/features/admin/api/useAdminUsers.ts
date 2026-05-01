@@ -11,6 +11,7 @@ export function useAdminUsers() {
       const response = await api.get("/api/auth/all")
       return response.data.data ?? []
     },
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchInterval: 30_000,
   })
 }

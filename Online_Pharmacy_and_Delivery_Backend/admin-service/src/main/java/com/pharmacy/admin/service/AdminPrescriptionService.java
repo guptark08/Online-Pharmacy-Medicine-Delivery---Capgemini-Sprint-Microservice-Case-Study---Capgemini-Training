@@ -47,15 +47,9 @@ public class AdminPrescriptionService {
     }
 
     public PrescriptionResponseDto getPrescriptionById(Long id) {
-        Optional<List<RemotePrescriptionResponse>> allRx = crossServiceClient.fetchAllPrescriptions(0, 1000);
-        if (allRx.isPresent()) {
-            return allRx.get().stream()
-                    .filter(rx -> id.equals(rx.getId()))
-                    .map(this::mapRemoteToDto)
-                    .findFirst()
-                    .orElseThrow(() -> new BadRequestException("Prescription not found: " + id));
-        }
-        throw new BadRequestException("Prescription not found: " + id);
+        return crossServiceClient.fetchPrescriptionById(id)
+                .map(this::mapRemoteToDto)
+                .orElseThrow(() -> new BadRequestException("Prescription not found: " + id));
     }
 
     @Transactional
@@ -74,17 +68,23 @@ public class AdminPrescriptionService {
     }
 
     private PrescriptionResponseDto mapRemoteToDto(RemotePrescriptionResponse remote) {
+        Long userId = remote.getUserId() != null ? remote.getUserId() : remote.getCustomerId();
+        String rejectionReason = remote.getRejectionReason() != null
+                ? remote.getRejectionReason()
+                : remote.getReviewNotes();
+
         return PrescriptionResponseDto.builder()
                 .id(remote.getId())
-                .userId(remote.getUserId())
+                .userId(userId)
                 .userEmail(remote.getUserEmail())
+                .fileName(remote.getFileName())
                 .fileUrl(remote.getFileUrl())
                 .fileType(remote.getFileType())
                 .status(remote.getStatus())
                 .doctorName(remote.getDoctorName())
                 .doctorRegNumber(remote.getDoctorRegNumber())
                 .reviewedByAdminId(remote.getReviewedByAdminId())
-                .rejectionReason(remote.getRejectionReason())
+                .rejectionReason(rejectionReason)
                 .orderId(remote.getOrderId())
                 .uploadedAt(remote.getUploadedAt() == null ? null : remote.getUploadedAt().toString())
                 .reviewedAt(remote.getReviewedAt() == null ? null : remote.getReviewedAt().toString())

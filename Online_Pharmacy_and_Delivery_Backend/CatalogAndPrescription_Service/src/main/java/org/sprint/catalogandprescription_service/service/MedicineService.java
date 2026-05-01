@@ -1,18 +1,28 @@
 package org.sprint.catalogandprescription_service.service;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import org.sprint.catalogandprescription_service.dto.MedicineDTO;
 import org.sprint.catalogandprescription_service.entities.Category;
 import org.sprint.catalogandprescription_service.entities.Medicine;
@@ -40,11 +50,18 @@ public class MedicineService {
             "updatedAt",
             "expiryDate");
 
+    private static final long MAX_IMAGE_SIZE = 5L * 1024 * 1024;
+    private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
+    private static final Set<String> ALLOWED_IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png", "webp");
+
     private final MedicineRepository medicineRepository;
     private final CategoryRepository categoryRepository;
 
     @Autowired(required = false)
     private DomainEventPublisher domainEventPublisher;
+
+    @Value("${app.upload.medicine-images.dir:uploads/medicine-images}")
+    private String medicineImageUploadDir;
 
     @Transactional(readOnly = true)
     public Page<MedicineDTO> getAllMedicines(String keyword, Long categoryId, Boolean requiresPrescription, int page, int size, String sortBy) {
@@ -171,6 +188,71 @@ public class MedicineService {
         publishInventoryAdjustedEvent(saved, previousStock, adjustmentType, reason);
 
         return convertToDTO(saved);
+    }
+
+    public MedicineDTO uploadMedicineImage(Long id, MultipartFile file) throws IOException {
+        Medicine medicine = medicineRepository.findByIdAndIsActiveTrue(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Medicine not found: " + id));
+
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Image file cannot be empty");
+        }
+        if (file.getSize() > MAX_IMAGE_SIZE) {
+            throw new IllegalArgumentException("Image size exceeds 5MB limit");
+        }
+
+        String originalFileName = file.getOriginalFilename() == null ? "" : Paths.get(file.getOriginalFilename()).getFileName().toString().trim();
+        int dotIdx = originalFileName.lastIndexOf('.');
+        if (dotIdx <= 0 || dotIdx == originalFileName.length() - 1) {
+            throw new IllegalArgumentException("Image file must have a valid extension");
+        }
+        String extension = originalFileName.substring(dotIdx + 1).toLowerCase(Locale.ROOT);
+        if (!ALLOWED_IMAGE_EXTENSIONS.contains(extension)) {
+            throw new IllegalArgumentException("Invalid image type. Allowed: jpg, jpeg, png, webp");
+        }
+
+        String contentType = file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
+        if (!ALLOWED_IMAGE_TYPES.contains(contentType)) {
+            throw new IllegalArgumentException("Invalid image content type");
+        }
+
+        Path uploadPath = Paths.get(medicineImageUploadDir).toAbsolutePath().normalize();
+        Files.createDirectories(uploadPath);
+
+        String uniqueFileName = UUID.randomUUID() + "." + extension;
+        Path filePath = uploadPath.resolve(uniqueFileName).normalize();
+        if (!filePath.startsWith(uploadPath)) {
+            throw new IllegalArgumentException("Invalid file path");
+        }
+
+        try (var inputStream = file.getInputStream()) {
+            Files.copy(inputStream, filePath, StandardCopyOption.REPLACE_EXISTING);
+        }
+
+        medicine.setImageUrl("/api/catalog/medicines/" + id + "/image-file?file=" + uniqueFileName);
+        Medicine saved = medicineRepository.save(medicine);
+        log.info("Medicine image uploaded for id={}: {}", id, uniqueFileName);
+        return convertToDTO(saved);
+    }
+
+    public Resource getMedicineImageFile(Long id, String fileName) {
+        if (fileName == null || fileName.isBlank() || fileName.contains("..") || fileName.contains("/")) {
+            throw new IllegalArgumentException("Invalid file name");
+        }
+        try {
+            Path uploadPath = Paths.get(medicineImageUploadDir).toAbsolutePath().normalize();
+            Path filePath = uploadPath.resolve(fileName).normalize();
+            if (!filePath.startsWith(uploadPath)) {
+                throw new IllegalArgumentException("Invalid file path");
+            }
+            Resource resource = new UrlResource(filePath.toUri());
+            if (resource.exists() && resource.isReadable()) {
+                return resource;
+            }
+        } catch (Exception e) {
+            log.warn("Cannot read medicine image file: {}", fileName);
+        }
+        throw new ResourceNotFoundException("Medicine image file not found");
     }
 
     public void deleteMedicine(Long id) {

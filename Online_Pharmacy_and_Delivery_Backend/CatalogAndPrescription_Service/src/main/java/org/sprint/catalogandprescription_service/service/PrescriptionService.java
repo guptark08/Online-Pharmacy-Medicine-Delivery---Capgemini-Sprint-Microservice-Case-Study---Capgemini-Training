@@ -152,6 +152,22 @@ public class PrescriptionService {
     }
 
 
+    public void cancelPrescription(Long prescriptionId, Long customerId) {
+        Prescription prescription = prescriptionRepository.findByIdAndCustomerId(prescriptionId, customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Prescription not found for current user"));
+        prescription.setStatus(Prescription.PrescriptionStatus.EXPIRED);
+        prescriptionRepository.save(prescription);
+    }
+
+    // Called internally by the order service (via Feign) when an order is cancelled.
+    // Uses prescriptionId only — no ownership check needed for trusted service-to-service calls.
+    public void cancelPrescriptionById(Long prescriptionId) {
+        prescriptionRepository.findById(prescriptionId).ifPresent(prescription -> {
+            prescription.setStatus(Prescription.PrescriptionStatus.EXPIRED);
+            prescriptionRepository.save(prescription);
+        });
+    }
+
     public void linkPrescriptionToOrder(Long prescriptionId, Long customerId, Long orderId) {
         if (prescriptionId == null || customerId == null || orderId == null) {
             throw new IllegalArgumentException("prescriptionId, customerId and orderId are required");
@@ -191,6 +207,49 @@ public class PrescriptionService {
         return prescriptionRepository.findByStatusOrderByUploadedAtAsc(Prescription.PrescriptionStatus.PENDING).stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<PrescriptionResponseDTO> getAllPrescriptions(int page, int size) {
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        int offset = Math.max(page, 0) * safeSize;
+        return prescriptionRepository.findAll().stream()
+                .sorted(java.util.Comparator.comparing(Prescription::getUploadedAt,
+                        java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .skip(offset)
+                .limit(safeSize)
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public PrescriptionResponseDTO getById(Long prescriptionId) {
+        Prescription prescription = prescriptionRepository.findById(prescriptionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Prescription not found: " + prescriptionId));
+        return convertToDTO(prescription);
+    }
+
+    @Transactional(readOnly = true)
+    public PrescriptionResponseDTO getByIdForCustomer(Long prescriptionId, Long customerId) {
+        Prescription prescription = prescriptionRepository.findByIdAndCustomerId(prescriptionId, customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Prescription not found for current user"));
+        return convertToDTO(prescription);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PrescriptionResponseDTO> getApprovedUnnotifiedForCustomer(Long customerId) {
+        return prescriptionRepository
+                .findByCustomerIdAndStatusAndUserNotifiedFalse(customerId, Prescription.PrescriptionStatus.APPROVED)
+                .stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    public void markNotified(Long prescriptionId, Long customerId) {
+        Prescription prescription = prescriptionRepository.findByIdAndCustomerId(prescriptionId, customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Prescription not found for current user"));
+        prescription.setUserNotified(true);
+        prescriptionRepository.save(prescription);
     }
 
     private void publishPrescriptionReviewedEvent(
@@ -289,4 +348,3 @@ public class PrescriptionService {
         throw new ResourceNotFoundException("Prescription file not found");
     }
 }
-

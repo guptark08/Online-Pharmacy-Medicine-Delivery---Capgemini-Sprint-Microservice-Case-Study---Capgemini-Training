@@ -14,6 +14,7 @@ public class PrescriptionResponseDto {
     private Long id;
     private Long userId;
     private String userEmail;
+    private String fileName;
     private String fileUrl;
     private String fileType;
     private String status;

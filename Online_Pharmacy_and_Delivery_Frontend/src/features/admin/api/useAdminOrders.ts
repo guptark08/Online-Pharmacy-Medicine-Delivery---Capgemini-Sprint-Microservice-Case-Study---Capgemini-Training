@@ -12,6 +12,7 @@ export function useAdminOrders() {
       const response = await api.get("/api/admin/orders")
       return response.data.data ?? []
     },
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchInterval: 20_000,
   })
 }

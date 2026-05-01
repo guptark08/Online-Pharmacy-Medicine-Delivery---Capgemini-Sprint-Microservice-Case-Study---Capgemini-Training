@@ -6,6 +6,7 @@ interface AuthResponsePayload {
   token?: string
   refreshToken?: string
   userId?: number
+  name?: string
   username?: string
   email?: string
   role?: string
@@ -49,6 +50,7 @@ export const useAuthStore = create<AuthState>()(
           refreshToken: response.refreshToken,
           user: {
             userId: response.userId,
+            name: response.name ?? "",
             username: response.username ?? "",
             email: response.email ?? "",
             role: normalizeRole(response.role),

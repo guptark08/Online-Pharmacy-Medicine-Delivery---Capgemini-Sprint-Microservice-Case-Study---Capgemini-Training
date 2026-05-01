@@ -17,17 +17,22 @@ public class CatalogServiceFeignFallbackFactory implements FallbackFactory<Catal
             }
 
             @Override
-            public List<RemotePrescriptionResponse> getPendingPrescriptions(String authorizationHeader) {
-                return List.of();
+            public RemoteApiResponse<List<RemotePrescriptionResponse>> getPendingPrescriptions(String authorizationHeader) {
+                return null;
             }
 
             @Override
-            public List<RemotePrescriptionResponse> getAllPrescriptions(String authorizationHeader, int page, int size) {
-                return List.of();
+            public RemoteApiResponse<List<RemotePrescriptionResponse>> getAllPrescriptions(String authorizationHeader, int page, int size) {
+                return null;
             }
 
             @Override
-            public RemotePrescriptionResponse reviewPrescription(String authorizationHeader, Long id, String status, String notes) {
+            public RemoteApiResponse<RemotePrescriptionResponse> getPrescriptionById(String authorizationHeader, Long id) {
+                return null;
+            }
+
+            @Override
+            public RemoteApiResponse<RemotePrescriptionResponse> reviewPrescription(String authorizationHeader, Long id, String status, String notes) {
                 return null;
             }
         };

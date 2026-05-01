@@ -52,8 +52,7 @@ public class PrescriptionController {
             @PathVariable Long id,
             @AuthenticationPrincipal JwtUserPrincipal currentUser) {
         Long userId = extractCurrentUserId(currentUser);
-        boolean isAdmin = currentUser != null && "ADMIN".equalsIgnoreCase(
-                currentUser.role() != null ? currentUser.role().replace("ROLE_", "") : "");
+        boolean isAdmin = hasRole(currentUser, "ADMIN");
         Resource resource = prescriptionService.getPrescriptionFile(id, isAdmin ? null : userId);
         String contentType = resource != null && resource.getFilename() != null
                 ? getContentType(resource.getFilename())
@@ -72,6 +71,19 @@ public class PrescriptionController {
         return ResponseEntity.ok(ApiResponse.success("Prescriptions fetched", list));
     }
 
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER')")
+    @Operation(summary = "Get a specific prescription")
+    public ResponseEntity<ApiResponse<PrescriptionResponseDTO>> getPrescriptionById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal JwtUserPrincipal currentUser) {
+
+        PrescriptionResponseDTO rx = hasRole(currentUser, "ADMIN")
+                ? prescriptionService.getById(id)
+                : prescriptionService.getByIdForCustomer(id, extractCurrentUserId(currentUser));
+        return ResponseEntity.ok(ApiResponse.success("Prescription fetched", rx));
+    }
+
     @GetMapping("/{id}/status")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<ApiResponse<String>> getPrescriptionStatusForCurrentUser(
@@ -80,6 +92,21 @@ public class PrescriptionController {
 
         String status = prescriptionService.getPrescriptionStatusForCustomer(id, extractCurrentUserId(currentUser));
         return ResponseEntity.ok(ApiResponse.success("Prescription status fetched", status));
+    }
+
+    @PutMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
+    @Operation(summary = "Cancel (dismiss) a prescription — marks it as EXPIRED so admin no longer sees it")
+    public ResponseEntity<ApiResponse<Void>> cancelPrescription(
+            @PathVariable Long id,
+            @AuthenticationPrincipal JwtUserPrincipal currentUser) {
+
+        if (hasRole(currentUser, "ADMIN")) {
+            prescriptionService.cancelPrescriptionById(id);
+        } else {
+            prescriptionService.cancelPrescription(id, extractCurrentUserId(currentUser));
+        }
+        return ResponseEntity.ok(ApiResponse.success("Prescription cancelled", null));
     }
 
     @PutMapping("/{id}/link-order/{orderId}")
@@ -91,6 +118,38 @@ public class PrescriptionController {
 
         prescriptionService.linkPrescriptionToOrder(id, extractCurrentUserId(currentUser), orderId);
         return ResponseEntity.ok(ApiResponse.success("Prescription linked to order", null));
+    }
+
+    @GetMapping("/my/approved-unnotified")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Get approved prescriptions not yet shown to user")
+    public ResponseEntity<ApiResponse<List<PrescriptionResponseDTO>>> getApprovedUnnotified(
+            @AuthenticationPrincipal JwtUserPrincipal currentUser) {
+
+        List<PrescriptionResponseDTO> list = prescriptionService.getApprovedUnnotifiedForCustomer(
+                extractCurrentUserId(currentUser));
+        return ResponseEntity.ok(ApiResponse.success("Unnotified approved prescriptions", list));
+    }
+
+    @PutMapping("/{id}/mark-notified")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Mark prescription approval as seen by user")
+    public ResponseEntity<ApiResponse<Void>> markNotified(
+            @PathVariable Long id,
+            @AuthenticationPrincipal JwtUserPrincipal currentUser) {
+
+        prescriptionService.markNotified(id, extractCurrentUserId(currentUser));
+        return ResponseEntity.ok(ApiResponse.success("Prescription marked as notified", null));
+    }
+
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get all prescriptions (Admin only)")
+    public ResponseEntity<ApiResponse<List<PrescriptionResponseDTO>>> getAllPrescriptions(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        List<PrescriptionResponseDTO> all = prescriptionService.getAllPrescriptions(page, size);
+        return ResponseEntity.ok(ApiResponse.success("All prescriptions fetched", all));
     }
 
     @GetMapping("/pending")
@@ -122,6 +181,13 @@ public class PrescriptionController {
             throw new IllegalStateException("Unable to resolve authenticated user");
         }
         return currentUser.userId();
+    }
+
+    private boolean hasRole(JwtUserPrincipal currentUser, String role) {
+        if (currentUser == null || currentUser.role() == null || role == null) {
+            return false;
+        }
+        return role.equalsIgnoreCase(currentUser.role().replace("ROLE_", ""));
     }
 
     private String getContentType(String filename) {

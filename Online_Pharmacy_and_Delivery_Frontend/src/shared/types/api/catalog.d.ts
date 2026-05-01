@@ -258,6 +258,7 @@ export interface components {
             fileType?: string;
             /** Format: int64 */
             fileSize?: number;
+            fileUrl?: string;
             status?: string;
             reviewNotes?: string;
             /** Format: date-time */
